@@ -127,3 +127,14 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Personal
+
+.DS_Store
+*.pdf
+*.png
+*.jpeg
+*.pyc
+*.npy
+.ipynb_checkpoints*
+*.mds
