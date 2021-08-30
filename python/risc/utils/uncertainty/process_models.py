@@ -2,14 +2,14 @@ import numpy as np
 
 
 class AbstractProcessModel:
-    def __init__(self, robot_model, state_model):
-        """ defines a full state measurement model 
-        y_{t+1} = g(x_t, u_t) + \gamma_{t+1]
+    def __init__(self, action_model, state_model):
+        """ defines uncertainty in the process model as  
+        y_{t+1} = f(x_t, u_t) + \gamma_{t+1]
         Args: 
-        robot_model: 
+        action_model: crocoddyl integrated action model 
         state_model: state model defined in crocoddyl 
         """
-        self.rmodel = robot_model 
+        self.model = action_model 
         self.state = state_model
 
 

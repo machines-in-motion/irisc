@@ -5,7 +5,7 @@ import numpy as np
 
 
 
-class ModelUncertainty: 
+class UncertaintyModel: 
     def __init__(self, process_model, measurement_model): 
         """ A class the combines model uncertainty for both process and measurements """
 
@@ -15,5 +15,8 @@ class ModelUncertainty:
         self.invOmega = None 
         self.Gamma = None 
         self.invGamma = None 
-        
 
+
+class UncertaintyData: 
+    def __init__(self):
+        pass
