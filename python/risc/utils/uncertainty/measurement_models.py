@@ -11,7 +11,6 @@ class AbstractMeasurementModel:
         """
         self.state = state_model
 
-
     def calc(self, x, u): 
         raise NotImplementedError("calc method is not implemented for AbstractMeasurementModel")
     
@@ -21,9 +20,15 @@ class AbstractMeasurementModel:
 
 class FullStateMeasurement(AbstractMeasurementModel):
     def __init__(self, state_model, m_covariance):
+        """
+        Args: 
+        filter: in different models this will be a matrix multiplying the noise vector, i.e. C_t * gamma_t  
+        """
         super(FullStateMeasurement, self).__init__(state_model)
         self.Gamma = m_covariance
         self.H = np.eye(self.state.ndx) 
+        self.ny = self.state.ndx 
+        self.filter = np.ones(self.state.ndx)
         try:
             self.invGamma = np.linalg.inv(m_covariance)
         except:

@@ -12,7 +12,6 @@ class AbstractProcessModel:
         self.model = action_model 
         self.state = state_model
 
-
     def calc(self, x, u): 
         raise NotImplementedError("calc method is not implemented for AbstractProcessModel")
     
@@ -25,6 +24,7 @@ class FullStateProcess(AbstractProcessModel):
         """ adds noise without a transformation on the full state """
         super(FullStateProcess, self).__init__(robot_model, state_model)
         self.Omega = p_covariance
+        self.filter = np.ones(self.state.ndx)
         try:
             self.invOmega = np.linalg.inv(p_covariance)
         except:
