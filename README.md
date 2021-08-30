@@ -1,4 +1,4 @@
-# risk_sensitive_lqg
+# iRiSC: Iterative Risk Sensitive Optimal Control for Partially Obsevable Systems
 
 This repository contains the python implementation for the iterative risk sensitive solvers accounting for process and measurement uncertainties
 
