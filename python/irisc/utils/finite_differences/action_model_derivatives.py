@@ -8,6 +8,7 @@ https://v8doc.sas.com/sashtml/ormp/chap5/sect28.htm
 """
 
 import numpy as np 
+
 import crocoddyl 
 
 DELTA = 1.e-6 # numerical differentiation step 
@@ -55,11 +56,12 @@ class CostNumDiff:
     def calcLxx(self, x, u): 
         dxi = np.zeros(self.ndx)
         dxj = np.zeros(self.ndx)
+
         for i in range(self.ndx):
             for j in range(self.ndx): 
                 dxi[i] = DELTA
                 dxj[j] = DELTA
-                xnew = self.state.integrate(x, dxi+ dxj)
+                xnew = self.state.integrate(x, dxi + dxj)
                 self.model.calc(self.data, xnew, u)
                 cost1 = self.data.cost 
                 xnew = self.state.integrate(x, dxi - dxj)
@@ -74,6 +76,7 @@ class CostNumDiff:
                 self.Lxx[i,j] = cost1 - cost2 - cost3 + cost4 
                 dxi[i] = 0.
                 dxj[j] = 0.
+        self.Lxx = .5*(self.Lxx + self.Lxx.T)
         self.Lxx *= 1./(4.*DELTA*DELTA)
 
     def calcLuu(self, x, u): 
@@ -94,6 +97,7 @@ class CostNumDiff:
                 self.Luu[i,j] = cost1 - cost2 - cost3 + cost4 
                 dui[i] = 0.
                 duj[j] = 0.
+        self.Luu = .5*(self.Luu + self.Luu.T)
         self.Luu *= 1./(4.*DELTA*DELTA)
 
     def calcLxu(self, x, u): 
