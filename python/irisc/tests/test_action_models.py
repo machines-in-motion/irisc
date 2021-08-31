@@ -22,6 +22,8 @@ def test_point_cliff_derivatives():
 
 
     for i, m in enumerate(models): 
+        # if i == 0:
+        #     continue
         x = m.state.rand() # generates a random state 
         u = np.random.rand(m.nu) # generates a random control 
         # calculate derivatives of IntegratedActionModel 

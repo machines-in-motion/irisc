@@ -28,19 +28,20 @@ class DifferentialActionModelCliff(crocoddyl.DifferentialActionModelAbstract):
         if u is None: 
             u = np.zeros(self.nu)
 
-        data.xout = (1/self.mass)*u + self.g # this has the acceleration output
+        
         if self.isTerminal: 
             data.cost = self._terminal_cost(x,u) 
+            data.xout = np.zeros(2)
         else:
             data.cost = self._running_cost(x,u)
+            data.xout = (1/self.mass)*u + self.g # this has the acceleration output
 
         # data.r = None # residuals I think, Must be crucial for finite difference derivative computation, must check it  
     
     def calcDiff(self, data, x, u=None):
         Fx = np.zeros([2,4]) 
         Fu = np.zeros([2,2])
-        Fu[0,0] = 1./self.mass 
-        Fu[1,1] = 1./self.mass 
+        
         Lx = np.zeros([4])
         Lu = np.zeros([2])
         Lxx = np.zeros([4,4])
@@ -62,6 +63,8 @@ class DifferentialActionModelCliff(crocoddyl.DifferentialActionModelAbstract):
             Lxx[1,1] = 0.11/((.1*x[1]+1.)**12)
             Luu[0,0] = 2. 
             Luu[1,1] = 0.02
+            Fu[0,0] = 1./self.mass 
+            Fu[1,1] = 1./self.mass 
 
         data.Fx = Fx.copy()
         data.Fu = Fu.copy()

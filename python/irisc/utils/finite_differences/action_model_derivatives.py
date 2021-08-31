@@ -59,16 +59,16 @@ class CostNumDiff:
             for j in range(self.ndx): 
                 dxi[i] = DELTA
                 dxj[j] = DELTA
-                xnew = self.state.Integrate(x, dxi+ dxj)
+                xnew = self.state.integrate(x, dxi+ dxj)
                 self.model.calc(self.data, xnew, u)
                 cost1 = self.data.cost 
-                xnew = self.state.Integrate(x, dxi - dxj)
+                xnew = self.state.integrate(x, dxi - dxj)
                 self.model.calc(self.data, xnew, u)
                 cost2 = self.data.cost 
-                xnew = self.state.Integrate(x, -dxi + dxj)
+                xnew = self.state.integrate(x, -dxi + dxj)
                 self.model.calc(self.data, xnew, u)
                 cost3 = self.data.cost 
-                xnew = self.state.Integrate(x, -dxi - dxj)
+                xnew = self.state.integrate(x, -dxi - dxj)
                 self.model.calc(self.data, xnew, u)
                 cost4 = self.data.cost 
                 self.Lxx[i,j] = cost1 - cost2 - cost3 + cost4 
@@ -103,16 +103,16 @@ class CostNumDiff:
             for j in range(self.nu): 
                 dx[i] = DELTA
                 du[j] = DELTA
-                xnew = self.state.Integrate(x, dx)
+                xnew = self.state.integrate(x, dx)
                 self.model.calc(self.data, xnew, u+du)
                 cost1 = self.data.cost 
-                xnew = self.state.Integrate(x, dx)
+                xnew = self.state.integrate(x, dx)
                 self.model.calc(self.data, xnew, u-du)
                 cost2 = self.data.cost 
-                xnew = self.state.Integrate(x, -dx)
-                self.model.calc(self.data, xnew, u-du)
+                xnew = self.state.integrate(x, -dx)
+                self.model.calc(self.data, xnew, u+du)
                 cost3 = self.data.cost 
-                xnew = self.state.Integrate(x, -dx)
+                xnew = self.state.integrate(x, -dx)
                 self.model.calc(self.data, xnew, u-du)
                 cost4 = self.data.cost 
                 self.Lxu[i,j] = cost1 - cost2 - cost3 + cost4 
