@@ -17,7 +17,7 @@ class DifferentialActionModelCliff(crocoddyl.DifferentialActionModelAbstract):
         self.mass = 1. 
 
     def _running_cost(self, x, u):
-        cost = 0.1/((.1*x[1] + .1)**10) + u[0]**2 + .01*u[1]**2 
+        cost = 0.1/((.1*x[1] + 1.)**10) + u[0]**2 + .01*u[1]**2 
         return cost
 
     def _terminal_cost(self, x, u):
@@ -57,7 +57,7 @@ class DifferentialActionModelCliff(crocoddyl.DifferentialActionModelAbstract):
             Lxx[2,2] = 2000. 
             Lxx[3,3] = 2000. 
         else:
-            Lx[1] = - (10.**10) /((x[1]+10.)**11)
+            Lx[1] = - 0.1 /((1 + .1*x[1])**11)
             Lu[0] = 2.*u[0] 
             Lu[1] = 0.02 * u[1]
             Lxx[1,1] = 0.11/((.1*x[1]+1.)**12)
