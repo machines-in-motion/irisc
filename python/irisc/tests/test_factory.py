@@ -11,7 +11,7 @@ def create_point_cliff_models(dt, horizon):
     cliff_diff_terminal = point_cliff.DifferentialActionModelCliff(isTerminal=True)
     cliff_running = crocoddyl.IntegratedActionModelEuler(cliff_diff_running, dt) 
     cliff_terminal = crocoddyl.IntegratedActionModelEuler(cliff_diff_terminal, dt) 
-    models = [cliff_running]*horizon + [cliff_terminal]
+    models = [cliff_running]*(horizon-1) + [cliff_terminal]
     return models 
 
 

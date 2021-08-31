@@ -2,14 +2,15 @@ import numpy as np
 
 
 class AbstractMeasurementModel:
-    def __init__(self, state_model):
+    def __init__(self, action_model):
         """ defines a full state measurement model 
         y_{t+1} = g(x_t, u_t) + \gamma_{t+1]
         Args: 
         state_model:  state model defined in crocoddyl 
         m_covariance: exactly \gamma_{t+1} in the above equation
         """
-        self.state = state_model
+        self.model = action_model
+        self.state = self.model.state
 
     def calc(self, x, u): 
         raise NotImplementedError("calc method is not implemented for AbstractMeasurementModel")
@@ -19,20 +20,16 @@ class AbstractMeasurementModel:
 
 
 class FullStateMeasurement(AbstractMeasurementModel):
-    def __init__(self, state_model, m_covariance):
+    def __init__(self, integrated_action, m_covariance):
         """
         Args: 
         filter: in different models this will be a matrix multiplying the noise vector, i.e. C_t * gamma_t  
         """
-        super(FullStateMeasurement, self).__init__(state_model)
+        super(FullStateMeasurement, self).__init__(integrated_action)
         self.Gamma = m_covariance
         self.H = np.eye(self.state.ndx) 
         self.ny = self.state.ndx 
-        self.filter = np.ones(self.state.ndx)
-        try:
-            self.invGamma = np.linalg.inv(m_covariance)
-        except:
-            raise BaseException("measurement covariance is not Positive Definite") 
+        self.filter = np.eye(self.state.ndx)
 
     def calc(self, x, u): 
         """This whole thing here might not make sense unless 

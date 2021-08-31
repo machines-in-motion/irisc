@@ -10,7 +10,7 @@ from utils.finite_differences import action_model_derivatives
 
 def test_point_cliff_derivatives(): 
     dt = 0.01 
-    horizon = 1  
+    horizon = 2  
     models = create_point_cliff_models(dt, horizon)
     cost_numdiff = []
     dynamics_numdiff  = []
