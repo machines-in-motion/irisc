@@ -30,7 +30,7 @@ if __name__ == "__main__":
     initial_covariance = 1.e-3 * np.eye(4)
     process_noise = 1.e-5*np.eye(4)
     measurement_noise = 1.e-4*np.eye(4)
-    sensitivity = 100.
+    sensitivity = -1.
 
     p_models, u_models = point_cliff_problem.full_state_uniform_cliff_problem(dt, horizon, process_noise, measurement_noise)
 
@@ -63,9 +63,12 @@ if __name__ == "__main__":
     irisc_solver.calc()
     print(" iRiSC calc including filterPass works ".center(LINE_WIDTH, '-'))
 
-    plt.figure("trajectory plot")
-    plt.plot(np.array(ddp_solver.xs)[:,0],np.array(ddp_solver.xs)[:,1], label="ddp")
-    plt.plot(np.array(irisc_solver.xhat)[:,0],np.array(irisc_solver.xhat)[:,1], label="irisc")
-    plt.legend()
+    irisc_solver.backwardPass()
+    print(" iRiSC backwardPass works ".center(LINE_WIDTH, '-'))
 
-    plt.show()
+    # plt.figure("trajectory plot")
+    # plt.plot(np.array(ddp_solver.xs)[:,0],np.array(ddp_solver.xs)[:,1], label="ddp")
+    # plt.plot(np.array(irisc_solver.xhat)[:,0],np.array(irisc_solver.xhat)[:,1], label="irisc")
+    # plt.legend()
+
+    # plt.show()

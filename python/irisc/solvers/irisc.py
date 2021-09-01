@@ -75,9 +75,11 @@ class RiskSensitiveSolver(SolverAbstract):
             next_skewed_cov = scl.cho_solve(Lb, right_cov)
             self.P[t+1][:,:] = mdata.Omega + pdata.Fx.dot(next_skewed_cov)
             # update estimate 
-            right_skewed_estimate = pdata.Lxx.dot(self.xhat[t]) - pdata.Lxu.dot(self.us[t]) - pdata.Lx 
+            # right_skewed_estimate = pdata.Lxx.dot(self.xhat[t]) - pdata.Lxu.dot(self.us[t]) - pdata.Lx 
+            right_skewed_estimate =  - pdata.Lx 
             skewed_estimate = scl.cho_solve(Lb, right_skewed_estimate)
-            self.xhat[t+1][:] = pdata.Fx.dot(self.xhat[t]) + pdata.Fu.dot(self.us[t]) + self.fs[t+1] -self.sigma* pdata.Fx.dot(skewed_estimate)
+            # self.xhat[t+1][:] = pdata.Fx.dot(self.xhat[t]) + pdata.Fu.dot(self.us[t]) + self.fs[t+1] -self.sigma* pdata.Fx.dot(skewed_estimate)
+            self.xhat[t+1][:] = pdata.Fx.dot(self.xhat[t]) -self.sigma* pdata.Fx.dot(skewed_estimate)
 
     def computeDirection(self, recalc=True):
         if recalc:
@@ -171,7 +173,37 @@ class RiskSensitiveSolver(SolverAbstract):
         raise NotImplementedError("controls recoupling not implemented yet")
 
     def backwardPass(self):
-        raise NotImplementedError("Backward Pass for iRiSC not implemented yet")
+        self.V[-1][:,:] = self.problem.terminalData.Lxx
+        self.v[-1][:] = self.problem.terminalData.Lx
+
+        for t, (model, data, umodel, udata) in rev_enumerate(zip(self.problem.runningModels,
+                                                        self.problem.runningDatas,
+                                                        self.uncertainty.runningModels,  
+                                                        self.uncertainty.runningDatas)):
+            
+            inv_V = np.linalg.inv(self.V[t+1])
+            self.M[t] = np.linalg.inv(self.sigma * udata.Omega + inv_V)
+            N_t = self.v[t+1] - self.sigma * self.M[t].dot(udata.Gamma).dot(self.v[t+1])
+            # 
+            uleft = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu)
+            Lb = scl.cho_factor(uleft + self.u_reg*np.eye(model.nu), lower=True)
+            uff_right = data.Lu + data.Fu.T.dot(self.M[t].dot(self.fs[t+1]) + N_t)
+            ufb_right = data.Lxu.T + data.Fu.T.dot(self.M[t]).dot(data.Fx) 
+            # 
+            self.kff[t][:] = scl.cho_solve(Lb, uff_right)
+            self.Kfb[t][:, :] = scl.cho_solve(Lb, ufb_right)
+            # aux term 
+            A_BK = data.Fx - data.Fu.dot(self.Kfb[t])
+            # hessian 
+            self.V[t][:,:] = data.Lxx + self.Kfb[t].T.dot(data.Luu).dot(self.Kfb[t]) - data.Lxu.dot(self.Kfb[t]) - self.Kfb[t].T.dot(data.Lxu.T)
+            self.V[t][:,:] += A_BK.T.dot(self.M[t]).dot(A_BK)
+            self.V[t][:,:] = .5 *(self.V[t] + self.V[t].T) # ensure symmetry 
+            # gradient 
+            self.v[t][:] = data.Lx + self.Kfb[t].T.dot(data.Luu).dot(self.kff[t]) - self.Kfb[t].T.dot(data.Lu) - data.Lxu.dot(self.kff[t])
+            self.v[t][:] += A_BK.T.dot(self.M[t]).dot(self.fs[t+1]- data.Fu.dot(self.kff[t])) 
+            self.v[t][:] +=A_BK.T.dot(N_t)
+
+            
 
     def increaseRegularization(self):
         self.x_reg *= self.regFactor
@@ -208,8 +240,8 @@ class RiskSensitiveSolver(SolverAbstract):
 
         # backward pass variables 
         self.M = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
-        self.kff = [np.zeros([p.nu, p.state.ndx]) for p in self.problem.runningModels] 
-        self.Kfb = [np.zeros([p.nu]) for p in self.problem.runningModels]
+        self.Kfb = [np.zeros([p.nu, p.state.ndx]) for p in self.problem.runningModels] 
+        self.kff = [np.zeros([p.nu]) for p in self.problem.runningModels]
         self.V = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
         self.v = [np.zeros(p.state.ndx) for p in self.models()]   
         
