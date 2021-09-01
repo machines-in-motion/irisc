@@ -24,8 +24,7 @@ class UncertaintyModel:
         data.invOmega[:,:] = np.linalg.inv(self.Omega) 
         data.Gamma[:,:] = self.mModel.filter.dot(self.mModel.Gamma).dot(self.mModel.filter.T)  
         data.invGamma[:,:] = np.linalg.inv(self.Gamma)  
-
-
+        data.H[:,:] = self.mModel.H.copy()
 
 class UncertaintyData: 
     def __init__(self, model):
@@ -33,7 +32,11 @@ class UncertaintyData:
         self.invOmega = np.zeros([model.ndx,model.ndx])
         self.Gamma = np.zeros([model.ny,model.ny])
         self.invGamma = np.zeros([model.ny,model.ny])
-        
+        self.H = np.zeros([model.ny, model.ndx])
+
+
+
+
 
 class ProblemUncertainty: 
     def __init__(self, x0, initialUncertainty, modelUncertainties):

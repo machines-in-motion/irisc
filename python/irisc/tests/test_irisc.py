@@ -66,6 +66,17 @@ def test_initialization():
     assert len(risk_solver.A) == horizon-1 
 
 
+def test_filterPass():
+    raise NotImplementedError("test_filterPass Not Implemented")
+
+
+def test_calc():
+    raise NotImplementedError("test_calc Not Implemented")
+
+
+
+def test_computeDirection():
+    raise NotImplementedError("test_computeDirection Not Implemented")
 
 if __name__ == "__main__": 
     test_initialization()
