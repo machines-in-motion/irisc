@@ -166,11 +166,7 @@ class RiskSensitiveSolver(SolverAbstract):
             return self.xs, self.us, self.isFeasible 
 
 
-    def forwardPass(self, stepLength, warning='error'):
-        raise NotImplementedError("forwardPass Method Not Implemented yet")
-
-    def recouplingControls(self): 
-        raise NotImplementedError("controls recoupling not implemented yet")
+    
 
     def backwardPass(self):
         self.V[-1][:,:] = self.problem.terminalData.Lxx
@@ -201,9 +197,27 @@ class RiskSensitiveSolver(SolverAbstract):
             # gradient 
             self.v[t][:] = data.Lx + self.Kfb[t].T.dot(data.Luu).dot(self.kff[t]) - self.Kfb[t].T.dot(data.Lu) - data.Lxu.dot(self.kff[t])
             self.v[t][:] += A_BK.T.dot(self.M[t]).dot(self.fs[t+1]- data.Fu.dot(self.kff[t])) 
-            self.v[t][:] +=A_BK.T.dot(N_t)
+            self.v[t][:] += A_BK.T.dot(N_t)
 
-            
+    def recouplingControls(self): 
+        """ this is the final optimization that gives a minimal total stress \check{x}"""
+        for t, (model, data, umodel, udata) in enumerate(zip(self.problem.runningModels,
+                                                        self.problem.runningDatas,
+                                                        self.uncertainty.runningModels,  
+                                                        self.uncertainty.runningDatas)):
+            # feedforward update 
+            uleft = np.eye(model.state.ndx) + self.sigma*self.P[t].dot(self.V[t])
+            Lb = scl.cho_factor(uleft , lower=True)
+            uff_right = self.P[t].dot(self.v[t])
+            uff = scl.cho_solve(Lb, uff_right)        
+            self.k[t] = self.kff[t] + self.sigma*self.Kfb[t].dot(uff)
+            # feedback update             
+            LbT = scl.cho_factor(uleft.T , lower=True)
+            ufb_right = self.Kfb[t].T  
+            self.K[t][:,:] = scl.cho_solve(LbT, ufb_right).T  
+
+    def forwardPass(self, stepLength, warning='error'):
+        raise NotImplementedError("forwardPass Method Not Implemented yet")
 
     def increaseRegularization(self):
         self.x_reg *= self.regFactor
@@ -223,7 +237,7 @@ class RiskSensitiveSolver(SolverAbstract):
         # state and control 
         self.xs_try = [self.problem.x0] + [np.nan] * self.problem.T
         self.us_try = [np.nan] * self.problem.T
-        
+
         # backward pass variables 
         self.M = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
         self.Kfb = [np.zeros([p.nu, p.state.ndx]) for p in self.problem.runningModels] 
@@ -247,7 +261,7 @@ class RiskSensitiveSolver(SolverAbstract):
 
         # initializations 
         self.P[0][:,:] = self.uncertainty.P0
-        self.xhat[0] = self.uncertainty.x0
+        self.xhat[0][:] = self.uncertainty.x0
 
 
 
