@@ -39,18 +39,6 @@ def test_initialization():
     pUncertainty = problem_uncertainty.ProblemUncertainty(x0, initial_covariance, uncertainty_models)
     sensitivity = 0.01 
     risk_solver = irisc.RiskSensitiveSolver(problem, pUncertainty, sensitivity, True)
-    # system approximations 
-    assert len(risk_solver.A) == horizon-1
-    assert len(risk_solver.B) == horizon-1
-    assert len(risk_solver.Omega) == horizon-1
-    assert len(risk_solver.H) == horizon-1
-    assert len(risk_solver.Gamma) == horizon-1
-    # cost approximations 
-    assert len(risk_solver.Q) == horizon
-    assert len(risk_solver.q) == horizon
-    assert len(risk_solver.S) == horizon-1
-    assert len(risk_solver.R) == horizon-1
-    assert len(risk_solver.r) == horizon-1
     # backward pass 
     assert len(risk_solver.M) == horizon
     assert len(risk_solver.kff) == horizon-1

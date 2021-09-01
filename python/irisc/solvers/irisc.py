@@ -223,21 +223,7 @@ class RiskSensitiveSolver(SolverAbstract):
         # state and control 
         self.xs_try = [self.problem.x0] + [np.nan] * self.problem.T
         self.us_try = [np.nan] * self.problem.T
-
-        # dynamics and measurement approximations 
-        self.A = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.problem.runningModels] 
-        self.B = [np.zeros([p.state.ndx, p.nu]) for p in self.problem.runningModels]
-        self.Omega = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.problem.runningModels] 
-        self.H = [np.zeros([m.ny , p.state.ndx]) for p,m in zip(self.problem.runningModels, self.uncertainty.runningModels)] 
-        self.Gamma = [np.zeros([m.ny, m.ny]) for m in self.uncertainty.runningModels] 
         
-        # cost approximations  
-        self.Q = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]  
-        self.q = [np.zeros(p.state.ndx) for p in self.models()]  
-        self.S = [np.zeros([p.nu, p.state.ndx]) for p in self.problem.runningModels]  
-        self.R = [np.zeros([p.nu, p.nu]) for p in self.problem.runningModels]  
-        self.r = [np.zeros(p.nu) for p in self.problem.runningModels]  
-
         # backward pass variables 
         self.M = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
         self.Kfb = [np.zeros([p.nu, p.state.ndx]) for p in self.problem.runningModels] 
