@@ -210,11 +210,14 @@ class RiskSensitiveSolver(SolverAbstract):
             Lb = scl.cho_factor(uleft , lower=True)
             uff_right = self.P[t].dot(self.v[t])
             uff = scl.cho_solve(Lb, uff_right)        
-            self.k[t] = self.kff[t] + self.sigma*self.Kfb[t].dot(uff)
+            self.k[t][:] = self.kff[t] + self.sigma*self.Kfb[t].dot(uff)
             # feedback update             
             LbT = scl.cho_factor(uleft.T , lower=True)
             ufb_right = self.Kfb[t].T  
             self.K[t][:,:] = scl.cho_solve(LbT, ufb_right).T  
+            # minimal stress state 
+            x_right = self.xhat[t] - self.sigma*self.P[t].dot(self.v[t])
+            self.xcheck[t][:]= scl.cho_solve(Lb, x_right)
 
     def forwardPass(self, stepLength, warning='error'):
         raise NotImplementedError("forwardPass Method Not Implemented yet")

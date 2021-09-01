@@ -66,9 +66,12 @@ if __name__ == "__main__":
     irisc_solver.backwardPass()
     print(" iRiSC backwardPass works ".center(LINE_WIDTH, '-'))
 
-    # plt.figure("trajectory plot")
-    # plt.plot(np.array(ddp_solver.xs)[:,0],np.array(ddp_solver.xs)[:,1], label="ddp")
-    # plt.plot(np.array(irisc_solver.xhat)[:,0],np.array(irisc_solver.xhat)[:,1], label="irisc")
-    # plt.legend()
+    irisc_solver.recouplingControls()
+    print(" iRiSC recouplingControls works ".center(LINE_WIDTH, '-'))
 
-    # plt.show()
+    plt.figure("trajectory plot")
+    plt.plot(np.array(ddp_solver.xs)[:,0],np.array(ddp_solver.xs)[:,1], label="ddp")
+    plt.plot(np.array(irisc_solver.xcheck)[:,0],np.array(irisc_solver.xcheck)[:,1], label="irisc")
+    plt.legend()
+
+    plt.show()
