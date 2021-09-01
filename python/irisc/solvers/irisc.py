@@ -61,7 +61,6 @@ class RiskSensitiveSolver(SolverAbstract):
     
     def filterPass(self): 
         """ involved computing \hat{x} with zero innovation """
-
         for t, (pdata, mdata) in enumerate(zip(self.problem.runningDatas, 
                                             self.uncertainty.runningDatas)):
             # inv_Pt + H^T invGamma H + \sigma Q 
@@ -72,7 +71,7 @@ class RiskSensitiveSolver(SolverAbstract):
             gain = scl.cho_solve(Lb, rightG)
             self.G[t][:,:] = pdata.Fx.dot(gain)
             # compute covariance update 
-            right_cov = pdata.A.T
+            right_cov = pdata.Fx.T
             next_skewed_cov = scl.cho_solve(Lb, right_cov)
             self.P[t+1][:,:] = mdata.Omega + pdata.Fx.dot(next_skewed_cov)
             # update estimate 
@@ -215,18 +214,22 @@ class RiskSensitiveSolver(SolverAbstract):
         self.v = [np.zeros(p.state.ndx) for p in self.models()]   
         
         # forward estimation 
-        self.xhat = [self.problem.x0] + [np.nan] * self.problem.T 
+        self.xhat = [self.uncertainty.x0] + [np.zeros(p.state.nx) for p in self.problem.runningModels]
         self.G = [np.zeros([p.state.ndx, m.ny]) for p,m in zip(self.problem.runningModels, self.uncertainty.runningModels)]  
         self.P = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
 
         # recoupling 
-        self.xcheck = [self.problem.x0] + [np.nan] * self.problem.T 
+        self.xcheck = [self.uncertainty.x0] + [np.zeros(p.state.nx) for p in self.problem.runningModels]
         self.K = [np.zeros([p.nu, p.state.ndx]) for p in self.problem.runningModels]
         self.k = [np.zeros([p.nu]) for p in self.problem.runningModels]
 
         # gaps 
         self.fs = [np.zeros(self.problem.runningModels[0].state.ndx)
                      ] + [np.zeros(p.state.ndx) for p in self.problem.runningModels]
+
+        # initializations 
+        self.P[0][:,:] = self.uncertainty.P0
+        self.xhat[0] = self.uncertainty.x0
 
 
 

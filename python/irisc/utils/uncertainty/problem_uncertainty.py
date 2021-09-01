@@ -21,9 +21,9 @@ class UncertaintyModel:
         self.mModel.calc(x,u)   
         # in case we have some weird state dependent filter, it can be applied here 
         data.Omega[:,:] = self.pModel.filter.dot(self.pModel.Omega).dot(self.pModel.filter.T) 
-        data.invOmega[:,:] = np.linalg.inv(self.Omega) 
+        data.invOmega[:,:] = np.linalg.inv(data.Omega) 
         data.Gamma[:,:] = self.mModel.filter.dot(self.mModel.Gamma).dot(self.mModel.filter.T)  
-        data.invGamma[:,:] = np.linalg.inv(self.Gamma)  
+        data.invGamma[:,:] = np.linalg.inv(data.Gamma)  
         data.H[:,:] = self.mModel.H.copy()
 
 class UncertaintyData: 

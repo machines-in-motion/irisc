@@ -115,7 +115,8 @@ if __name__ =="__main__":
     if converged:
         print(" DDP solver has CONVERGED ".center(LINE_WIDTH, '-'))
         plt.figure("trajectory plot")
-        plt.plot(x,y)
+        # plt.plot(x,y)
+        plt.plot(np.array(ddp.xs)[:,0],np.array(ddp.xs)[:,0], label="ddp")
 
         plt.figure("velocity plots")
         plt.plot(time_array, vx)
