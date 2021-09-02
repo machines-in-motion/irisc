@@ -29,9 +29,9 @@ if __name__ == "__main__":
     x0 = np.zeros(4)
     initial_covariance = 1.e-3 * np.eye(4)
     process_noise = 1.e-5*np.eye(4)
+    process_noise[1,1] = 1.e-2 
     measurement_noise = 1.e-4*np.eye(4)
-    sensitivity = -.1
-
+    sensitivity = 10.
     p_models, u_models = point_cliff_problem.full_state_uniform_cliff_problem(dt, horizon, process_noise, measurement_noise)
 
     ddp_problem = crocoddyl.ShootingProblem(x0, p_models[:-1], p_models[-1])
@@ -56,6 +56,9 @@ if __name__ == "__main__":
 
     irisc_xs = [x0]*horizon
     irisc_us = [np.zeros(2)]*(horizon-1)
+
+    irisc_xs = [x0 for xi in ddp_solver.xs] 
+    irisc_us = [np.array([0., 9.81]) for _ in ddp_solver.us]
 
     irisc_converged = irisc_solver.solve(irisc_xs, irisc_us, MAX_ITER, False)
 
