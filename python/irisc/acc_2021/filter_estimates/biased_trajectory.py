@@ -30,7 +30,7 @@ if __name__ == "__main__":
     initial_covariance = 1.e-3 * np.eye(4)
     process_noise = 1.e-5*np.eye(4)
     measurement_noise = 1.e-4*np.eye(4)
-    sensitivity = -1.
+    sensitivity = -.1
 
     p_models, u_models = point_cliff_problem.full_state_uniform_cliff_problem(dt, horizon, process_noise, measurement_noise)
 
@@ -42,9 +42,9 @@ if __name__ == "__main__":
     ])
     ddp_xs = [x0]*horizon
     ddp_us = [np.zeros(2)]*(horizon-1)
-    converged = ddp_solver.solve(ddp_xs,ddp_us, MAX_ITER)
+    ddp_converged = ddp_solver.solve(ddp_xs,ddp_us, MAX_ITER)
 
-    if converged:
+    if ddp_converged:
         print("DDP Converged".center(LINE_WIDTH, '#'))
         print("Starting iRiSC".center(LINE_WIDTH, '#'))
 
@@ -52,26 +52,22 @@ if __name__ == "__main__":
     irisc_uncertainty = problem_uncertainty.ProblemUncertainty(x0, initial_covariance, u_models)
     irisc_solver = irisc.RiskSensitiveSolver(irisc_problem, irisc_uncertainty, sensitivity)
 
-    irisc_solver.setCallbacks([
-    crocoddyl.CallbackLogger(),
-    crocoddyl.CallbackVerbose()
-    ])
+    irisc_solver.setCallbacks([crocoddyl.CallbackLogger(), crocoddyl.CallbackVerbose()])
+
+    irisc_xs = [x0]*horizon
+    irisc_us = [np.zeros(2)]*(horizon-1)
+
+    irisc_converged = irisc_solver.solve(irisc_xs, irisc_us, MAX_ITER, False)
+
+    if irisc_converged:
+        print("iRiSC Converged".center(LINE_WIDTH, '#'))
+        print("Plotting Results".center(LINE_WIDTH, '#'))
 
 
-    irisc_solver.setCandidate(ddp_solver.xs, ddp_solver.us, True)
-    print(" iRiSC setCandidates works ".center(LINE_WIDTH, '-'))
-    irisc_solver.calc()
-    print(" iRiSC calc including filterPass works ".center(LINE_WIDTH, '-'))
-
-    irisc_solver.backwardPass()
-    print(" iRiSC backwardPass works ".center(LINE_WIDTH, '-'))
-
-    irisc_solver.recouplingControls()
-    print(" iRiSC recouplingControls works ".center(LINE_WIDTH, '-'))
 
     plt.figure("trajectory plot")
     plt.plot(np.array(ddp_solver.xs)[:,0],np.array(ddp_solver.xs)[:,1], label="ddp")
-    plt.plot(np.array(irisc_solver.xcheck)[:,0],np.array(irisc_solver.xcheck)[:,1], label="irisc")
+    plt.plot(np.array(irisc_solver.xs)[:,0],np.array(irisc_solver.xs)[:,1], label="irisc")
     plt.legend()
 
     plt.show()
