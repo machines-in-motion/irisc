@@ -11,6 +11,7 @@ class UncertaintyModel:
         self.ndx = self.pModel.state.ndx 
         self.mModel = measurement_model 
         self.ny = self.mModel.ny
+        self.state = self.pModel.state
 
     def createData(self): 
         return UncertaintyData(self)
@@ -25,6 +26,14 @@ class UncertaintyModel:
         data.Gamma[:,:] = self.mModel.filter.dot(self.mModel.Gamma).dot(self.mModel.filter.T)  
         data.invGamma[:,:] = np.linalg.inv(data.Gamma)  
         data.H[:,:] = self.mModel.H.copy()
+        data.y[:] = self.mModel.calc(x,u)
+
+    def measurement_deviation(self, y, xn): 
+        return self.mModel.deviation(y, xn)
+
+    def measurement_increment(self, y, dy):
+        return self.mModel.integrate(y, dy)
+
 
 class UncertaintyData: 
     def __init__(self, model):
@@ -33,6 +42,7 @@ class UncertaintyData:
         self.Gamma = np.zeros([model.ny,model.ny])
         self.invGamma = np.zeros([model.ny,model.ny])
         self.H = np.zeros([model.ny, model.ndx])
+        self.y = np.zeros(model.ny)
 
 
 
@@ -58,6 +68,25 @@ class ProblemUncertainty:
     def calc(self, xs, us): 
         for i, uModel in enumerate(self.runningModels): 
             uModel.calc(self.runningDatas[i], xs[i], us[i])
+            
+
+
+    def sample_process(self, t, x, u):
+        """ returns a random disturbed state """
+        np.random.seed()
+        self.runningModels[t].calc(self.runningDatas[t], x, u)
+        dist = np.random.multivariate_normal(np.zeros(self.runningModels[t].ndx),
+                                            self.runningDatas[t].Omega)
+        return self.runningModels[t].state.integrate(x, dist)
+
+
+    def sample_measurement(self, t, x, u): 
+        np.random.seed()
+        self.runningModels[t].calc(self.runningDatas[t], x, u)  
+        dist = np.random.multivariate_normal(np.zeros(self.runningModels[t].ny),
+                                            self.runningDatas[t].Gamma)
+        
+        return self.runningModels[t].measurement_increment(self.runningDatas[t].y, dist)
              
 
 

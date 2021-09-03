@@ -3,6 +3,23 @@ import crocoddyl
 import matplotlib.pyplot as plt 
 LINE_WIDTH = 100 
 
+
+
+
+class PointMassDynamics:
+    def __init__(self):
+        self.g = np.array([0. , -9.81])
+        self.mass = 1 
+        self.nq = 2 
+        self.nv = 2 
+        self.ndx = 2 
+        self.nx = self.nq + self.nv 
+
+    def __call__(self, x, u):
+        return (1/self.mass)*u + self.g
+        
+        
+
 class DifferentialActionModelCliff(crocoddyl.DifferentialActionModelAbstract):
     def __init__(self, isTerminal=False):
         nq = 2 

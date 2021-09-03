@@ -34,7 +34,13 @@ class FullStateMeasurement(AbstractMeasurementModel):
     def calc(self, x, u): 
         """This whole thing here might not make sense unless 
         I assume calc as returning some disturbed measurement sample""" 
-        pass 
+        return x  
+
+    def deviation(self, y, xn): 
+        return self.state.diff(xn, y)
+    
+    def integrate(self, y, dy):
+        return self.state.integrate(y, dy)
         
     def calcDiff(self, x, u, recalc=False): 
         """ might change if g(x_t, u_t) is some nonlinear function, for now it is just the identity """

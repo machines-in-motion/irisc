@@ -172,9 +172,13 @@ class RiskSensitiveSolver(SolverAbstract):
             if VERBOSE: print("N[%s]"%t)
             # 
             uleft = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu)
+            # print("Quu \n", uleft)
             Lb = scl.cho_factor(uleft + self.u_reg*np.eye(model.nu), lower=True)
             uff_right = data.Lu + data.Fu.T.dot(self.M[t].dot(self.fs[t+1]) + N_t)
             ufb_right = data.Lxu.T + data.Fu.T.dot(self.M[t]).dot(data.Fx) 
+            # print("Qxu \n", ufb_right)
+
+            print("K fb \n", scl.cho_solve(Lb, ufb_right))
             # 
             self.kff[t][:] = scl.cho_solve(Lb, uff_right)
             if VERBOSE: print("kff[%s]"%t)
@@ -235,50 +239,70 @@ class RiskSensitiveSolver(SolverAbstract):
             self.x_reg = self.regMin
         self.u_reg = self.x_reg
 
-    def recoupleControls(self, x, u, t): 
-        """ this is the final optimization that gives a minimal total stress \check{x}"""
-        # for t, (model, data, umodel, udata) in enumerate(zip(self.problem.runningModels,
-        #                                                 self.problem.runningDatas,
-        #                                                 self.uncertainty.runningModels,  
-        #                                                 self.uncertainty.runningDatas)):
-        #     # feedforward update 
-        #     uleft = np.eye(model.state.ndx) + self.sigma*self.P[t].dot(self.V[t])
-        #     Lb = scl.cho_factor(uleft , lower=True)
-        #     uff_right = self.P[t].dot(self.v[t])
-        #     uff = scl.cho_solve(Lb, uff_right)        
-        #     self.k[t][:] = self.kff[t] + self.sigma*self.Kfb[t].dot(uff)
-        #     # feedback update             
-        #     LbT = scl.cho_factor(uleft.T , lower=True)
-        #     ufb_right = self.Kfb[t].T  
-        #     self.K[t][:,:] = scl.cho_solve(LbT, ufb_right).T  
-        #     # minimal stress state 
-        #     x_right = self.xhat[t] - self.sigma*self.P[t].dot(self.v[t])
-        #     self.xcheck[t][:]= scl.cho_solve(Lb, x_right)
-        raise NotImplementedError("recoupleControls method not implemented yet! ")
 
-    def biasedFilter(self): 
-        """ involved computing \hat{x} with zero innovation """
-        # for t, (pdata, mdata) in enumerate(zip(self.problem.runningDatas, 
-        #                                     self.uncertainty.runningDatas)):
-        #     # inv_Pt + H^T invGamma H + \sigma Q 
-        #     inv_skewed_covariance = np.linalg.inv(self.P[t]) + mdata.H.T.dot(mdata.invGamma).dot(mdata.H) + self.sigma*pdata.Lxx
+    def controllerStep(self, t, y, u=None, interpolation=0.): 
+        """ runs a single control update step which includes 
+        1. compute past stress estimate \hat{x}_t , P_t, G_t 
+        2. compute minimal stress estimate \check{x}_t 
+        3. compute deviation of minimal stress estimate from nominal trajectory x^n_t 
+        4. update feedforward and feedback accordingly 
+        Args: 
+            x: disturbed x coming back from simulator 
+            t: time index along planned horizon
+        """
+        
+        # if t == 0: 
+        #     left_dx_ch = np.eye(self.problem.runningModels[t].state.ndx) + self.sigma*self.P[t].dot(self.V[t]) 
+        #     Lb_dx_ch = scl.cho_factor(left_dx_ch , lower=True)
+        #     right_dx_ch = - self.sigma * self.P[t].dot(self.v[t])
+        #     self.delta_xcheck[0][:]  = scl.cho_solve(Lb_dx_ch, right_dx_ch)
+        #     self.xcheck[0][:] = self.problem.runningModels[t].state.integrate(self.xhat[0], self.delta_xcheck[0]) 
+        # else:
+        #     pdata = self.problem.runningDatas[t-1]
+        #     pmodel = self.problem.runningModels[t]
+        #     mdata = self.uncertainty.runningDatas[t]
+        #     mmodel = self.uncertainty.runningModels[t]
+
+
+        #     delta_u = u - self.us[t] 
+        #     delta_y = mmodel.measurement_deviation(y, self.xs[t-1]) 
+
+        #     inv_skewed_covariance = np.linalg.inv(self.P[t-1]) + mdata.H.T.dot(mdata.invGamma).dot(mdata.H) + self.sigma*pdata.Lxx
         #     Lb = scl.cho_factor(inv_skewed_covariance , lower=True)
         #     # compute filter gain 
         #     rightG = mdata.H.T.dot(mdata.invGamma)
         #     gain = scl.cho_solve(Lb, rightG)
         #     self.G[t][:,:] = pdata.Fx.dot(gain)
-        #     # compute covariance update 
-        #     right_cov = pdata.Fx.T
-        #     next_skewed_cov = scl.cho_solve(Lb, right_cov)
-        #     self.P[t+1][:,:] = mdata.Omega + pdata.Fx.dot(next_skewed_cov)
-        #     # update estimate 
-        #     # right_skewed_estimate = pdata.Lxx.dot(self.xhat[t]) - pdata.Lxu.dot(self.us[t]) - pdata.Lx 
-        #     right_skewed_estimate =  - pdata.Lx 
-        #     skewed_estimate = scl.cho_solve(Lb, right_skewed_estimate)
-        #     # self.xhat[t+1][:] = pdata.Fx.dot(self.xhat[t]) + pdata.Fu.dot(self.us[t]) + self.fs[t+1] -self.sigma* pdata.Fx.dot(skewed_estimate)
-        #     self.xhat[t+1][:] = pdata.Fx.dot(self.xhat[t]) -self.sigma* pdata.Fx.dot(skewed_estimate)
-        
-        raise NotImplementedError("biasedFilter method not implemented yet! ")
+        #     # cmpute xhat             
+        #     right_dxhat = pdata.Lxx.dot(self.delta_xhat[t-1]) - pdata.Lxu.dot(delta_u) - pdata.Lx 
+        #     dx_hat =  scl.cho_solve(Lb, right_dxhat)
+        #     self.delta_xhat[t][:] = - self.sigma*pdata.A.dot(dx_hat)
+        #     self.delta_xhat[t][:] += pdata.Fx.dot(self.delta_xhat[t-1]) + pdata.Fu.dot(delta_u)  
+        #     self.delta_xhat[t][:] += self.G[t].dot(delta_y - mdata.H.dot(self.delta_xhat[t-1])) 
+        #     # compute P 
+        #     right_P = pdata.Fx.T 
+        #     Pt = scl.cho_solve(Lb, right_P)
+        #     self.P[t][:,:] = mdata.Omega + pdata.Fx.dot(Pt)
+
+        #     # compute x_check 
+        #     left_dx_ch =  np.eye(pmodel.state.ndx) + self.sigma*self.P[t].dot(self.V[t])  
+        #     Lb_dx_ch = scl.cho_factor(left_dx_ch , lower=True) 
+        #     right_dx_ch = self.delta_xhat[t] - self.sigma * self.P[t].dot(self.v[t])
+        #     self.delta_xcheck[t][:] = scl.cho_solve(Lb_dx_ch, right_dx_ch)
+        #     self.xcheck[t][:] = pmodel.state.integrate(self.xs[t], self.delta_xcheck[t])
+        return self.us[t]
+
+
+
+    def perfectObservationControl(self, t, x): 
+        err = self.problem.runningModels[t].state.diff(self.xs[t], x)
+        print("error norm\n", np.linalg.norm(err))
+        # print("feedback norm norm\n",np.linalg.norm(self.Kfb[t]))
+        print("max feedback gain\n",np.amax(np.abs(self.Kfb[t])))
+        control = self.us[t] - self.Kfb[t].dot(err)
+        return control 
+
+
 
 
     
@@ -315,6 +339,16 @@ class RiskSensitiveSolver(SolverAbstract):
         self.P[0][:,:] = self.uncertainty.P0
         self.xhat[0][:] = self.uncertainty.x0
 
+
+        self.delta_xhat = [np.zeros(p.state.ndx) for p in self.models()]   
+        self.delta_xcheck = [np.zeros(p.state.ndx) for p in self.models()]   
+
+
+        # print(len(self.V))
+        # print(len(self.problem.runningModels))
+        # print(len(self.problem.runningDatas))
+        # print(len(self.uncertainty.runningModels))
+        # print(len(self.uncertainty.runningDatas))
 
 
 

@@ -11,7 +11,7 @@ import numpy as np
 import os, sys
 src_path = os.path.abspath('../../') 
 sys.path.append(src_path)
-
+from utils.action_models import point_cliff
 from utils.problems import point_cliff_problem
 from utils.uncertainty import problem_uncertainty
 from solvers import irisc
@@ -22,16 +22,18 @@ import matplotlib.pyplot as plt
 MAX_ITER = 100 
 LINE_WIDTH = 100
 
+
+
 if __name__ == "__main__":
     
     dt = 0.01 
     horizon = 300 
     x0 = np.zeros(4)
     initial_covariance = 1.e-3 * np.eye(4)
-    process_noise = 1.e-5*np.eye(4)
-    process_noise[1,1] = 1.e-2 
-    measurement_noise = 1.e-4*np.eye(4)
-    sensitivity = 10.
+    process_noise = 1.e-3*np.eye(4)
+    # process_noise[1,1] = 1.e-2 
+    measurement_noise = 1.e-3*np.eye(4)
+    sensitivity = -1. 
     p_models, u_models = point_cliff_problem.full_state_uniform_cliff_problem(dt, horizon, process_noise, measurement_noise)
 
     ddp_problem = crocoddyl.ShootingProblem(x0, p_models[:-1], p_models[-1])
@@ -62,15 +64,52 @@ if __name__ == "__main__":
 
     irisc_converged = irisc_solver.solve(irisc_xs, irisc_us, MAX_ITER, False)
 
-    if irisc_converged:
-        print("iRiSC Converged".center(LINE_WIDTH, '#'))
-        print("Plotting Results".center(LINE_WIDTH, '#'))
+    # if irisc_converged:
+    #     print("iRiSC Converged".center(LINE_WIDTH, '#'))
+    #     print("Plotting Results".center(LINE_WIDTH, '#'))
 
 
 
-    plt.figure("trajectory plot")
-    plt.plot(np.array(ddp_solver.xs)[:,0],np.array(ddp_solver.xs)[:,1], label="ddp")
-    plt.plot(np.array(irisc_solver.xs)[:,0],np.array(irisc_solver.xs)[:,1], label="irisc")
-    plt.legend()
+    # ## ddp gains 
+    # # 
+    # for t in range(horizon-1):
+    #     print("DDP max feedback gain\n",np.amax(np.abs(ddp_solver.K[t])))    
+    #     print("iRiSC max feedback gain\n",np.amax(np.abs(irisc_solver.Kfb[t])))    
+    # plt.figure("trajectory plot")
+    # plt.plot(np.array(ddp_solver.xs)[:,0],np.array(ddp_solver.xs)[:,1], label="ddp")
+    # plt.plot(np.array(irisc_solver.xs)[:,0],np.array(irisc_solver.xs)[:,1], label="irisc")
+    # plt.legend()
 
-    plt.show()
+    # x_sim = [x0]
+    # xhat_sim = [x0]
+    # cov_sim = [initial_covariance]
+    # y_sim = [x0]
+    # u_sim = []
+    # # acceleration model 
+    # dv_model = point_cliff.PointMassDynamics()
+    # q_next = np.zeros(2)
+    # v_next = np.zeros(2)
+    
+    # for t in range(horizon-1): 
+    #     if t == 0:
+    #         u_prev = None 
+    #     else:
+    #         u_prev = u_sim[-1]
+    #     # u_sim += [irisc_solver.controllerStep(t, y_sim[t], u_prev)]
+    #     u_sim += [irisc_solver.perfectObservationControl(t, x_sim[t])]
+    #     dv = dt*dv_model(x_sim[-1], u_sim[-1]) # get acceleration 
+
+    #     v_next[:] = x_sim[-1][2:] + dv 
+    #     q_next[:] = x_sim[-1][2:] + dt* x_sim[-1][2:] + .5 * dt**dv 
+    #     x_new = np.hstack([q_next, v_next])
+    #     x_sim += [irisc_uncertainty.sample_process(t, x_new, u_sim[-1])]
+    #     y_sim += [irisc_uncertainty.sample_measurement(t, x_sim[-2], u_sim[-1])]
+
+
+    # plt.figure("trajectory plot")
+    # plt.plot(np.array(irisc_solver.xs)[:,0],np.array(irisc_solver.xs)[:,1], label="irisc")
+    # plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
+    # plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
+    # plt.legend()
+
+    # plt.show()
