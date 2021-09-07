@@ -233,7 +233,7 @@ class RiskSensitiveSolver(SolverAbstract):
             if VERBOSE: print("v[%s]"%t)
             # print("v[t]")
             # if t == (self.problem.T - 5):
-            #     raise BaseException("Stopping backward pass here ")
+            #     raise BaseException("Stopping backward pass here ")     
 
     def forwardPass(self, stepLength, warning='error'):
         ctry = 0
@@ -276,6 +276,38 @@ class RiskSensitiveSolver(SolverAbstract):
         if self.x_reg < self.regMin:
             self.x_reg = self.regMin
         self.u_reg = self.x_reg
+
+    def pastStressEstimate(self, t, u, y, x_hat, P): 
+        p_model = self.problem.runningModels[t]
+        m_model = self.uncertainty.runningModels[t]
+        p_data = self.problem.runningDatas[t]
+        m_data = self.uncertainty.runningDatas[t]
+        # compute deviations 
+        del_xhat = p_model.state.diff(self.xs[t], x_hat)
+        del_y = m_model.measurement_deviation(y, self.xs[t]) 
+        du = u - self.us[t]
+        # compuate estimation gain 
+        inv_skewed_covariance = np.linalg.inv(P) + m_data.H.T.dot(m_data.invGamma).dot(m_data.H) + self.sigma*p_data.Lxx
+        Lb = scl.cho_factor(inv_skewed_covariance , lower=True)
+        # compute filter gain 
+        rightG = m_data.H.T.dot(m_data.invGamma)
+        gain = scl.cho_solve(Lb, rightG)
+        self.G[t][:,:] = p_data.Fx.dot(gain)
+        # update deviation estimate 
+        right_dxhat = p_data.Lxx.dot(del_xhat) - p_data.Lxu.dot(du) - p_data.Lx 
+        dx_hat =  scl.cho_solve(Lb, right_dxhat)
+        estimate_dx =- self.sigma*p_data.Fx.dot(dx_hat)
+        estimate_dx += p_data.Fx.dot(del_xhat) + p_data.Fu.dot(du)  
+        estimate_dx += self.G[t].dot(del_y - m_data.H.dot(del_xhat)) 
+
+        right_P = p_data.Fx.T 
+        Pt = scl.cho_solve(Lb, right_P)
+        P_next = m_data.Omega + p_data.Fx.dot(Pt)
+ 
+        # update estimates 
+        x_next = p_model.state.integrate(self.xs[t+1], estimate_dx)
+
+        return x_next, P_next
 
 
     def controllerStep(self, t, y, u=None, interpolation=0.): 

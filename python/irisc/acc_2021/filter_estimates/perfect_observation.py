@@ -85,40 +85,102 @@ if __name__ == "__main__":
     xhat_sim = [x0]
     cov_sim = [initial_covariance]
     y_sim = [x0]
-    u_sim = [irisc_solver.us[0]]
+    u_sim = []
     # acceleration model 
     dv_model = point_cliff.PointMassDynamics()
     q_next = np.zeros(2)
     v_next = np.zeros(2)
 
-
+    irisc_kff_norm = []
+    irisc_kfb_norm = []
+    irisk_open_loop = []
+    
     for t in range(horizon-1): 
+        if t == 0:
+            u_prev = None 
+        else:
+            u_prev = u_sim[-1]
+        # u_sim += [irisc_solver.controllerStep(t, y_sim[t], u_prev)]
+        u_sim += [irisc_solver.perfectObservationControl(t, x_sim[t])]
+        dv = dt*dv_model(x_sim[-1], u_sim[-1]) # get acceleration 
 
+        irisc_kff_norm += [np.linalg.norm(irisc_solver.kff[t])]
+        irisc_kfb_norm += [np.linalg.norm(irisc_solver.Kfb[t])]
+        irisk_open_loop += [np.linalg.norm(irisc_solver.us[t])]
 
-        # noiseless simulation step 
-        dv = dt*dv_model(x_sim[t], u_sim[t]) # get acceleration 
-        v_next[:] = x_sim[t][2:] + dv 
-        q_next[:] = x_sim[t][:2] + dt* x_sim[t][2:] + .5 * dt*dv 
+        v_next[:] = x_sim[-1][2:] + dv 
+        q_next[:] = x_sim[-1][:2] + dt* x_sim[-1][2:] + .5 * dt*dv 
         x_new = np.hstack([q_next, v_next])
-        # add disturbance to measurement 
-        y_sim += [irisc_uncertainty.sample_measurement(t, x_sim[t], u_sim[t])]
-        # add disturbance to simulation 
-        x_sim += [irisc_uncertainty.sample_process(t, x_new, u_sim[t])]
-        # compute the estimate 
-        newX, newP = irisc_solver.pastStressEstimate(t, u_sim[t], y_sim[t+1], xhat_sim[t], cov_sim[t])
-
-        xhat_sim += [newX]
-        cov_sim += [newP]
-        # compute control for next step 
-        u_sim += [irisc_solver.controllerStep(t, y_sim[t+1])]
+        x_sim += [irisc_uncertainty.sample_process(t, x_new, u_sim[-1])]
+        y_sim += [irisc_uncertainty.sample_measurement(t, x_sim[-2], u_sim[-1])]
 
 
     plt.figure("iRiSC trajectory plot")
     plt.plot(np.array(irisc_solver.xs)[:,0],np.array(irisc_solver.xs)[:,1], label="irisc")
     plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
     plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
-    plt.plot(np.array(xhat_sim)[:,0],np.array(xhat_sim)[:,1], label="estimated")
     plt.legend()
 
+
+
+    x_sim = [x0]
+    xhat_sim = [x0]
+    cov_sim = [initial_covariance]
+    y_sim = [x0]
+    u_sim = []
+    # acceleration model 
+    dv_model = point_cliff.PointMassDynamics()
+    q_next = np.zeros(2)
+    v_next = np.zeros(2)
+
+    ddp_kff_norm = []
+    ddp_kfb_norm = []
+    ddp_open_loop = []
+    
+    for t in range(horizon-1): 
+        if t == 0:
+            u_prev = None 
+        else:
+            u_prev = u_sim[-1]
+        # u_sim += [irisc_solver.controllerStep(t, y_sim[t], u_prev)]
+        err = ddp_solver.problem.runningModels[t].state.diff(ddp_solver.xs[t], x_sim[t])
+        u_sim += [ddp_solver.us[t]- ddp_solver.K[t].dot(err)]
+        dv = dt*dv_model(x_sim[-1], u_sim[-1]) # get acceleration 
+
+        ddp_kff_norm += [np.linalg.norm(ddp_solver.k[t])]
+        ddp_kfb_norm += [np.linalg.norm(ddp_solver.K[t])]
+        ddp_open_loop += [np.linalg.norm(ddp_solver.us[t])]
+
+
+        v_next[:] = x_sim[-1][2:] + dv 
+        q_next[:] = x_sim[-1][:2] + dt* x_sim[-1][2:] + .5 * dt*dv 
+        x_new = np.hstack([q_next, v_next])
+        x_sim += [irisc_uncertainty.sample_process(t, x_new, u_sim[-1])]
+        y_sim += [irisc_uncertainty.sample_measurement(t, x_sim[-2], u_sim[-1])]
+
+
+    plt.figure("DDP trajectory plot")
+    plt.plot(np.array(ddp_solver.xs)[:,0],np.array(ddp_solver.xs)[:,1], label="ddp")
+    plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
+    plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
+    plt.legend()
+
+
+    t_array = dt*np.arange(horizon-1)
+    plt.figure("feedforward norms")
+    plt.plot(t_array, ddp_kff_norm, label="ddp kff")
+    plt.plot(t_array, irisc_kff_norm, label="irisc kff")
+    plt.legend()
+
+
+    plt.figure("feedback norms")
+    plt.plot(t_array, ddp_kfb_norm, label="ddp kff")
+    plt.plot(t_array, irisc_kfb_norm, label="irisc kff")
+    plt.legend()
+
+    plt.figure("open loop norms")
+    plt.plot(t_array, ddp_open_loop, label="ddp kff")
+    plt.plot(t_array, irisk_open_loop, label="irisc kff")
+    plt.legend()
 
     plt.show()
