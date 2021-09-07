@@ -53,8 +53,8 @@ class RiskSensitiveSolver(SolverAbstract):
 
     def calc(self):
         # compute cost and derivatives at deterministic nonlinear trajectory 
-        self.problem.calc(self.xs, self.us)
-        self.cost = self.problem.calcDiff(self.xs, self.us)
+        self.cost = self.problem.calc(self.xs, self.us)
+        self.problem.calcDiff(self.xs, self.us)
         self.uncertainty.calc(self.xs, self.us) # compute H, Omega, Gamma 
     
     def computeGaps(self):
@@ -66,9 +66,9 @@ class RiskSensitiveSolver(SolverAbstract):
         if recalc:
             if VERBOSE: print("Going into Calc from compute direction")
             self.calc()
-        
         if VERBOSE: print("Going into Backward Pass from compute direction")
         self.backwardPass() 
+
         
 
     def tryStep(self, stepLength):
@@ -102,9 +102,16 @@ class RiskSensitiveSolver(SolverAbstract):
             # print("running iteration no. %s".center(LINE_WIDTH,'#')%i)
             recalc = True   # this will recalculated derivatives in Compute Direction 
             while True:     # backward pass with regularization 
-                try: 
+                try:
+                    # print("Accessing try") 
                     self.computeDirection(recalc=recalc)
+                    if i == 0:
+                        print("logging initial gains")
+                        self.kff_init = [ki for ki in self.kff]
+                        self.Kfb_init = [ki for ki in self.Kfb]
+                        self.cost = 1.e+45
                 except:
+                    print("compute direcrtion failed")
                     pass 
                     # recalc = True 
                     # self.increaseRegularization()
@@ -162,6 +169,8 @@ class RiskSensitiveSolver(SolverAbstract):
         self.V[-1][:,:] = self.problem.terminalData.Lxx
         self.v[-1][:] = self.problem.terminalData.Lx
 
+        # print("terminal value stored")
+
         for t, (model, data, umodel, udata) in rev_enumerate(zip(self.problem.runningModels,
                                                         self.problem.runningDatas,
                                                         self.uncertainty.runningModels,  
@@ -169,21 +178,30 @@ class RiskSensitiveSolver(SolverAbstract):
             
             # print("computing node %s".center(LINE_WIDTH, '=')%t)
             inv_V = np.linalg.inv(self.V[t+1])
+            # print("inv_V")
             if VERBOSE: print("inv V[%s]"%t)
             self.M[t] = np.linalg.inv(self.sigma * udata.Omega + inv_V)
+
+            # print(" M[t]")
             # print("M[t] is : \n", self.M[t])
             if VERBOSE: print("M[%s]"%t)
             N_t = self.v[t+1] - self.sigma * self.M[t].dot(udata.Omega).dot(self.v[t+1])
+            # print(" N[t]")
             # print("N[t] is : \n", N_t)
             if VERBOSE: print("N[%s]"%t)
             # 
-            uleft = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu)
+            uleft = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu) #+ self.u_reg*np.eye(model.nu)
+
+            # print("uleft")
             # print("uleft is : \n", uleft)
             # print("Quu \n", uleft)
-            Lb = scl.cho_factor(uleft + self.u_reg*np.eye(model.nu), lower=True)
+            Lb = scl.cho_factor(uleft, lower=True)
+            # print(" Lb[t]")
             uff_right = data.Lu + data.Fu.T.dot(self.M[t].dot(self.fs[t+1]) + N_t)
+            # print(" kff[t] right ")
             # print("uff_right is : \n", uff_right)
             ufb_right = data.Lxu.T + data.Fu.T.dot(self.M[t]).dot(data.Fx) 
+            # print(" Kfb[t] right")
             # print("ufb_right is : \n", ufb_right)
 
             
@@ -192,23 +210,28 @@ class RiskSensitiveSolver(SolverAbstract):
             # print("K fb \n", scl.cho_solve(Lb, ufb_right))
             # 
             self.kff[t][:] = scl.cho_solve(Lb, uff_right)
+            # print(" kff[t]")
             # print("kff is : \n", self.kff[t])
             if VERBOSE: print("kff[%s]"%t)
             self.Kfb[t][:, :] = scl.cho_solve(Lb, ufb_right)
+            # print(" Kfb[t]")
             # print("kfb is : \n", self.Kfb[t])
             if VERBOSE: print("Kfb[%s]"%t)
             # aux term 
             A_BK = data.Fx - data.Fu.dot(self.Kfb[t])
+            # print(" A_BK")
             # hessian 
             self.V[t][:,:] = data.Lxx + self.Kfb[t].T.dot(data.Luu).dot(self.Kfb[t]) - data.Lxu.dot(self.Kfb[t]) - self.Kfb[t].T.dot(data.Lxu.T)
-            self.V[t][:,:] += A_BK.T.dot(self.M[t]).dot(A_BK)
-            # self.V[t][:,:] = .5 *(self.V[t] + self.V[t].T) # ensure symmetry 
+            self.V[t][:,:] += A_BK.T.dot(self.M[t]).dot(A_BK) #+ self.x_reg*np.eye(model.state.ndx)
+            self.V[t][:,:] = .5 *(self.V[t] + self.V[t].T) # ensure symmetry 
+            # print("V[t]")
             if VERBOSE: print("V[%s]"%t)
             # gradient 
             self.v[t][:] = data.Lx + self.Kfb[t].T.dot(data.Luu).dot(self.kff[t]) - self.Kfb[t].T.dot(data.Lu) - data.Lxu.dot(self.kff[t])
             self.v[t][:] += A_BK.T.dot(self.M[t]).dot(self.fs[t+1]- data.Fu.dot(self.kff[t])) 
             self.v[t][:] += A_BK.T.dot(N_t)
             if VERBOSE: print("v[%s]"%t)
+            # print("v[t]")
             # if t == (self.problem.T - 5):
             #     raise BaseException("Stopping backward pass here ")
 
@@ -357,6 +380,9 @@ class RiskSensitiveSolver(SolverAbstract):
 
         self.delta_xhat = [np.zeros(p.state.ndx) for p in self.models()]   
         self.delta_xcheck = [np.zeros(p.state.ndx) for p in self.models()]   
+
+        self.kff_init = None 
+        self.Kfb_init = None # first iteration 
 
 
         # print(len(self.V))

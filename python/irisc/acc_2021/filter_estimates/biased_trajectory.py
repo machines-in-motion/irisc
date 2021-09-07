@@ -7,6 +7,7 @@
 6. how is risk.xhat different from risk.xs ? 
  """
 
+from re import I
 import numpy as np 
 import os, sys
 src_path = os.path.abspath('../../') 
@@ -19,7 +20,7 @@ import crocoddyl
 
 import matplotlib.pyplot as plt 
 
-MAX_ITER = 100 
+MAX_ITER = 1000 
 LINE_WIDTH = 100
 
 
@@ -33,7 +34,7 @@ if __name__ == "__main__":
     process_noise = 1.e-3*np.eye(4)
     # process_noise[1,1] = 1.e-2 
     measurement_noise = 1.e-3*np.eye(4)
-    sensitivity = -1. 
+    sensitivity = -.3
     p_models, u_models = point_cliff_problem.full_state_uniform_cliff_problem(dt, horizon, process_noise, measurement_noise)
 
     ddp_problem = crocoddyl.ShootingProblem(x0, p_models[:-1], p_models[-1])
@@ -57,11 +58,11 @@ if __name__ == "__main__":
     irisc_solver.setCallbacks([crocoddyl.CallbackLogger(), crocoddyl.CallbackVerbose()])
 
     irisc_xs = [x0]*horizon
-    irisc_us = [np.array([0., 9.81]) for _ in ddp_solver.us]
-
-    # irisc_xs = [x0 for xi in ddp_solver.xs] 
     # irisc_us = [np.array([0., 9.81]) for _ in ddp_solver.us]
+    irisc_us = [ui for ui in ddp_solver.us] 
+    
 
+    # MAX_ITER = 1 
     irisc_converged = irisc_solver.solve(irisc_xs, irisc_us, MAX_ITER, False)
 
     # if irisc_converged:
@@ -89,6 +90,10 @@ if __name__ == "__main__":
     dv_model = point_cliff.PointMassDynamics()
     q_next = np.zeros(2)
     v_next = np.zeros(2)
+
+    irisc_kff_norm = []
+    irisc_kfb_norm = []
+    irisk_open_loop = []
     
     for t in range(horizon-1): 
         if t == 0:
@@ -98,6 +103,10 @@ if __name__ == "__main__":
         # u_sim += [irisc_solver.controllerStep(t, y_sim[t], u_prev)]
         u_sim += [irisc_solver.perfectObservationControl(t, x_sim[t])]
         dv = dt*dv_model(x_sim[-1], u_sim[-1]) # get acceleration 
+
+        irisc_kff_norm += [np.linalg.norm(irisc_solver.kff[t])]
+        irisc_kfb_norm += [np.linalg.norm(irisc_solver.Kfb[t])]
+        irisk_open_loop += [np.linalg.norm(irisc_solver.us[t])]
 
         v_next[:] = x_sim[-1][2:] + dv 
         q_next[:] = x_sim[-1][:2] + dt* x_sim[-1][2:] + .5 * dt*dv 
@@ -123,6 +132,10 @@ if __name__ == "__main__":
     dv_model = point_cliff.PointMassDynamics()
     q_next = np.zeros(2)
     v_next = np.zeros(2)
+
+    ddp_kff_norm = []
+    ddp_kfb_norm = []
+    ddp_open_loop = []
     
     for t in range(horizon-1): 
         if t == 0:
@@ -133,6 +146,11 @@ if __name__ == "__main__":
         err = ddp_solver.problem.runningModels[t].state.diff(ddp_solver.xs[t], x_sim[t])
         u_sim += [ddp_solver.us[t]- ddp_solver.K[t].dot(err)]
         dv = dt*dv_model(x_sim[-1], u_sim[-1]) # get acceleration 
+
+        ddp_kff_norm += [np.linalg.norm(ddp_solver.k[t])]
+        ddp_kfb_norm += [np.linalg.norm(ddp_solver.K[t])]
+        ddp_open_loop += [np.linalg.norm(ddp_solver.us[t])]
+
 
         v_next[:] = x_sim[-1][2:] + dv 
         q_next[:] = x_sim[-1][:2] + dt* x_sim[-1][2:] + .5 * dt*dv 
@@ -145,6 +163,24 @@ if __name__ == "__main__":
     plt.plot(np.array(ddp_solver.xs)[:,0],np.array(ddp_solver.xs)[:,1], label="ddp")
     plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
     plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
+    plt.legend()
+
+
+    t_array = dt*np.arange(horizon-1)
+    plt.figure("feedforward norms")
+    plt.plot(t_array, ddp_kff_norm, label="ddp kff")
+    plt.plot(t_array, irisc_kff_norm, label="irisc kff")
+    plt.legend()
+
+
+    plt.figure("feedback norms")
+    plt.plot(t_array, ddp_kfb_norm, label="ddp kff")
+    plt.plot(t_array, irisc_kfb_norm, label="irisc kff")
+    plt.legend()
+
+    plt.figure("open loop norms")
+    plt.plot(t_array, ddp_open_loop, label="ddp kff")
+    plt.plot(t_array, irisk_open_loop, label="irisc kff")
     plt.legend()
 
     plt.show()
