@@ -83,6 +83,7 @@ if __name__ == "__main__":
 
     x_sim = [x0]
     xhat_sim = [x0]
+    xcheck_sim = [x0]
     cov_sim = [initial_covariance]
     y_sim = [x0]
     u_sim = [irisc_solver.us[0]]
@@ -109,8 +110,11 @@ if __name__ == "__main__":
 
         xhat_sim += [newX]
         cov_sim += [newP]
+
+        xcheck, ucheck = irisc_solver.controllerStep(t+1, xhat_sim[t+1], cov_sim[t+1])
+        xcheck_sim += [xcheck]
         # compute control for next step 
-        u_sim += [irisc_solver.controllerStep(t, y_sim[t+1])]
+        u_sim += [ucheck]
 
 
     plt.figure("iRiSC trajectory plot")
@@ -118,6 +122,7 @@ if __name__ == "__main__":
     plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
     plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
     plt.plot(np.array(xhat_sim)[:,0],np.array(xhat_sim)[:,1], label="estimated")
+    plt.plot(np.array(xcheck_sim)[:,0],np.array(xcheck_sim)[:,1], label="check")
     plt.legend()
 
 

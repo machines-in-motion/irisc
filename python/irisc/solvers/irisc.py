@@ -299,18 +299,16 @@ class RiskSensitiveSolver(SolverAbstract):
         estimate_dx =- self.sigma*p_data.Fx.dot(dx_hat)
         estimate_dx += p_data.Fx.dot(del_xhat) + p_data.Fu.dot(du)  
         estimate_dx += self.G[t].dot(del_y - m_data.H.dot(del_xhat)) 
-
+        # update deviation covariance 
         right_P = p_data.Fx.T 
         Pt = scl.cho_solve(Lb, right_P)
         P_next = m_data.Omega + p_data.Fx.dot(Pt)
- 
         # update estimates 
         x_next = p_model.state.integrate(self.xs[t+1], estimate_dx)
-
         return x_next, P_next
 
 
-    def controllerStep(self, t, y, u=None, interpolation=0.): 
+    def controllerStep(self, t, x_hat, P, interpolation=0.): 
         """ runs a single control update step which includes 
         1. compute past stress estimate \hat{x}_t , P_t, G_t 
         2. compute minimal stress estimate \check{x}_t 
@@ -320,47 +318,21 @@ class RiskSensitiveSolver(SolverAbstract):
             x: disturbed x coming back from simulator 
             t: time index along planned horizon
         """
-        
-        # if t == 0: 
-        #     left_dx_ch = np.eye(self.problem.runningModels[t].state.ndx) + self.sigma*self.P[t].dot(self.V[t]) 
-        #     Lb_dx_ch = scl.cho_factor(left_dx_ch , lower=True)
-        #     right_dx_ch = - self.sigma * self.P[t].dot(self.v[t])
-        #     self.delta_xcheck[0][:]  = scl.cho_solve(Lb_dx_ch, right_dx_ch)
-        #     self.xcheck[0][:] = self.problem.runningModels[t].state.integrate(self.xhat[0], self.delta_xcheck[0]) 
-        # else:
-        #     pdata = self.problem.runningDatas[t-1]
-        #     pmodel = self.problem.runningModels[t]
-        #     mdata = self.uncertainty.runningDatas[t]
-        #     mmodel = self.uncertainty.runningModels[t]
+        p_model = self.problem.runningModels[t-1]
+        m_model = self.uncertainty.runningModels[t-1]
+        p_data = self.problem.runningDatas[t-1]
+        m_data = self.uncertainty.runningDatas[t-1]
+        # compute deviations 
+        del_xhat = p_model.state.diff(self.xs[t], x_hat)
 
+        # compute x_check 
+        left_dx_ch =  np.eye(p_model.state.ndx) + self.sigma*P.dot(self.V[t])  
+        Lb_dx_ch = scl.cho_factor(left_dx_ch , lower=True) 
+        right_dx_ch = del_xhat - self.sigma * P.dot(self.v[t])
+        del_xcheck = scl.cho_solve(Lb_dx_ch, right_dx_ch)
 
-        #     delta_u = u - self.us[t] 
-        #     delta_y = mmodel.measurement_deviation(y, self.xs[t-1]) 
-
-        #     inv_skewed_covariance = np.linalg.inv(self.P[t-1]) + mdata.H.T.dot(mdata.invGamma).dot(mdata.H) + self.sigma*pdata.Lxx
-        #     Lb = scl.cho_factor(inv_skewed_covariance , lower=True)
-        #     # compute filter gain 
-        #     rightG = mdata.H.T.dot(mdata.invGamma)
-        #     gain = scl.cho_solve(Lb, rightG)
-        #     self.G[t][:,:] = pdata.Fx.dot(gain)
-        #     # cmpute xhat             
-        #     right_dxhat = pdata.Lxx.dot(self.delta_xhat[t-1]) - pdata.Lxu.dot(delta_u) - pdata.Lx 
-        #     dx_hat =  scl.cho_solve(Lb, right_dxhat)
-        #     self.delta_xhat[t][:] = - self.sigma*pdata.A.dot(dx_hat)
-        #     self.delta_xhat[t][:] += pdata.Fx.dot(self.delta_xhat[t-1]) + pdata.Fu.dot(delta_u)  
-        #     self.delta_xhat[t][:] += self.G[t].dot(delta_y - mdata.H.dot(self.delta_xhat[t-1])) 
-        #     # compute P 
-        #     right_P = pdata.Fx.T 
-        #     Pt = scl.cho_solve(Lb, right_P)
-        #     self.P[t][:,:] = mdata.Omega + pdata.Fx.dot(Pt)
-
-        #     # compute x_check 
-        #     left_dx_ch =  np.eye(pmodel.state.ndx) + self.sigma*self.P[t].dot(self.V[t])  
-        #     Lb_dx_ch = scl.cho_factor(left_dx_ch , lower=True) 
-        #     right_dx_ch = self.delta_xhat[t] - self.sigma * self.P[t].dot(self.v[t])
-        #     self.delta_xcheck[t][:] = scl.cho_solve(Lb_dx_ch, right_dx_ch)
-        #     self.xcheck[t][:] = pmodel.state.integrate(self.xs[t], self.delta_xcheck[t])
-        return self.us[t]
+        xcheck = p_model.state.integrate(self.xs[t], del_xcheck)
+        return xcheck, self.us[t-1]
 
 
 
