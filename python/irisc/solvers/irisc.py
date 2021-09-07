@@ -99,18 +99,21 @@ class RiskSensitiveSolver(SolverAbstract):
         self.x_reg = regInit if regInit is not None else self.regMin
         self.u_reg = regInit if regInit is not None else self.regMin
         for i in range(maxiter):
+            print("running iteration no. %s".center(LINE_WIDTH,'#')%i)
             recalc = True   # this will recalculated derivatives in Compute Direction 
             while True:     # backward pass with regularization 
                 try: 
                     self.computeDirection(recalc=recalc)
                 except:
-                    recalc = False 
-                    self.increaseRegularization()
-                    if self.x_reg == self.regMax: # if max reg reached, faild to converge, end solve attempt  
-                        print("Backward Pass Maximum Regularization Reached for alpha = %s"%a) 
-                        return False #self.xs, self.us, False
-                    else:  # continue to next while  
-                        continue
+                    pass 
+                    # recalc = True 
+                    # self.increaseRegularization()
+                    # print("increasing regularization at iterations %s"%i)
+                    # if self.x_reg == self.regMax: # if max reg reached, faild to converge, end solve attempt  
+                    #     print("Backward Pass Maximum Regularization Reached for alpha = %s"%a) 
+                    #     return False #self.xs, self.us, False
+                    # else:  # continue to next while  
+                    #     continue
                 break # compute direction succeeded, exit and proceed to line search 
             
             for a in self.alphas:
@@ -163,39 +166,50 @@ class RiskSensitiveSolver(SolverAbstract):
                                                         self.uncertainty.runningModels,  
                                                         self.uncertainty.runningDatas)):
             
-
+            # print("computing node %s".center(LINE_WIDTH, '=')%t)
             inv_V = np.linalg.inv(self.V[t+1])
             if VERBOSE: print("inv V[%s]"%t)
             self.M[t] = np.linalg.inv(self.sigma * udata.Omega + inv_V)
+            # print("M[t] is : \n", self.M[t])
             if VERBOSE: print("M[%s]"%t)
             N_t = self.v[t+1] - self.sigma * self.M[t].dot(udata.Omega).dot(self.v[t+1])
+            # print("N[t] is : \n", N_t)
             if VERBOSE: print("N[%s]"%t)
             # 
             uleft = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu)
+            # print("uleft is : \n", uleft)
             # print("Quu \n", uleft)
             Lb = scl.cho_factor(uleft + self.u_reg*np.eye(model.nu), lower=True)
             uff_right = data.Lu + data.Fu.T.dot(self.M[t].dot(self.fs[t+1]) + N_t)
+            # print("uff_right is : \n", uff_right)
             ufb_right = data.Lxu.T + data.Fu.T.dot(self.M[t]).dot(data.Fx) 
+            # print("ufb_right is : \n", ufb_right)
+
+            
             # print("Qxu \n", ufb_right)
 
-            print("K fb \n", scl.cho_solve(Lb, ufb_right))
+            # print("K fb \n", scl.cho_solve(Lb, ufb_right))
             # 
             self.kff[t][:] = scl.cho_solve(Lb, uff_right)
+            # print("kff is : \n", self.kff[t])
             if VERBOSE: print("kff[%s]"%t)
             self.Kfb[t][:, :] = scl.cho_solve(Lb, ufb_right)
+            # print("kfb is : \n", self.Kfb[t])
             if VERBOSE: print("Kfb[%s]"%t)
             # aux term 
             A_BK = data.Fx - data.Fu.dot(self.Kfb[t])
             # hessian 
             self.V[t][:,:] = data.Lxx + self.Kfb[t].T.dot(data.Luu).dot(self.Kfb[t]) - data.Lxu.dot(self.Kfb[t]) - self.Kfb[t].T.dot(data.Lxu.T)
             self.V[t][:,:] += A_BK.T.dot(self.M[t]).dot(A_BK)
-            self.V[t][:,:] = .5 *(self.V[t] + self.V[t].T) # ensure symmetry 
+            # self.V[t][:,:] = .5 *(self.V[t] + self.V[t].T) # ensure symmetry 
             if VERBOSE: print("V[%s]"%t)
             # gradient 
             self.v[t][:] = data.Lx + self.Kfb[t].T.dot(data.Luu).dot(self.kff[t]) - self.Kfb[t].T.dot(data.Lu) - data.Lxu.dot(self.kff[t])
             self.v[t][:] += A_BK.T.dot(self.M[t]).dot(self.fs[t+1]- data.Fu.dot(self.kff[t])) 
             self.v[t][:] += A_BK.T.dot(N_t)
             if VERBOSE: print("v[%s]"%t)
+            # if t == (self.problem.T - 5):
+            #     raise BaseException("Stopping backward pass here ")
 
     def forwardPass(self, stepLength, warning='error'):
         ctry = 0
@@ -296,9 +310,9 @@ class RiskSensitiveSolver(SolverAbstract):
 
     def perfectObservationControl(self, t, x): 
         err = self.problem.runningModels[t].state.diff(self.xs[t], x)
-        print("error norm\n", np.linalg.norm(err))
+        # print("error norm\n", np.linalg.norm(err))
         # print("feedback norm norm\n",np.linalg.norm(self.Kfb[t]))
-        print("max feedback gain\n",np.amax(np.abs(self.Kfb[t])))
+        # print("max feedback gain\n",np.amax(np.abs(self.Kfb[t])))
         control = self.us[t] - self.Kfb[t].dot(err)
         return control 
 
@@ -317,7 +331,8 @@ class RiskSensitiveSolver(SolverAbstract):
         # backward pass variables 
         self.M = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
         self.Kfb = [np.zeros([p.nu, p.state.ndx]) for p in self.problem.runningModels] 
-        self.kff = [np.zeros([p.nu]) for p in self.problem.runningModels]
+        print(len(self.Kfb))
+        self.kff = [np.zeros(p.nu) for p in self.problem.runningModels]
         self.V = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
         self.v = [np.zeros(p.state.ndx) for p in self.models()]   
         

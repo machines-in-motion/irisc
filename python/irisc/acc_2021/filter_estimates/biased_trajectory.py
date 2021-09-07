@@ -80,36 +80,71 @@ if __name__ == "__main__":
     # plt.plot(np.array(irisc_solver.xs)[:,0],np.array(irisc_solver.xs)[:,1], label="irisc")
     # plt.legend()
 
-    # x_sim = [x0]
-    # xhat_sim = [x0]
-    # cov_sim = [initial_covariance]
-    # y_sim = [x0]
-    # u_sim = []
-    # # acceleration model 
-    # dv_model = point_cliff.PointMassDynamics()
-    # q_next = np.zeros(2)
-    # v_next = np.zeros(2)
+    x_sim = [x0]
+    xhat_sim = [x0]
+    cov_sim = [initial_covariance]
+    y_sim = [x0]
+    u_sim = []
+    # acceleration model 
+    dv_model = point_cliff.PointMassDynamics()
+    q_next = np.zeros(2)
+    v_next = np.zeros(2)
     
-    # for t in range(horizon-1): 
-    #     if t == 0:
-    #         u_prev = None 
-    #     else:
-    #         u_prev = u_sim[-1]
-    #     # u_sim += [irisc_solver.controllerStep(t, y_sim[t], u_prev)]
-    #     u_sim += [irisc_solver.perfectObservationControl(t, x_sim[t])]
-    #     dv = dt*dv_model(x_sim[-1], u_sim[-1]) # get acceleration 
+    for t in range(horizon-1): 
+        if t == 0:
+            u_prev = None 
+        else:
+            u_prev = u_sim[-1]
+        # u_sim += [irisc_solver.controllerStep(t, y_sim[t], u_prev)]
+        u_sim += [irisc_solver.perfectObservationControl(t, x_sim[t])]
+        dv = dt*dv_model(x_sim[-1], u_sim[-1]) # get acceleration 
 
-    #     v_next[:] = x_sim[-1][2:] + dv 
-    #     q_next[:] = x_sim[-1][2:] + dt* x_sim[-1][2:] + .5 * dt**dv 
-    #     x_new = np.hstack([q_next, v_next])
-    #     x_sim += [irisc_uncertainty.sample_process(t, x_new, u_sim[-1])]
-    #     y_sim += [irisc_uncertainty.sample_measurement(t, x_sim[-2], u_sim[-1])]
+        v_next[:] = x_sim[-1][2:] + dv 
+        q_next[:] = x_sim[-1][:2] + dt* x_sim[-1][2:] + .5 * dt*dv 
+        x_new = np.hstack([q_next, v_next])
+        x_sim += [irisc_uncertainty.sample_process(t, x_new, u_sim[-1])]
+        y_sim += [irisc_uncertainty.sample_measurement(t, x_sim[-2], u_sim[-1])]
 
 
-    # plt.figure("trajectory plot")
-    # plt.plot(np.array(irisc_solver.xs)[:,0],np.array(irisc_solver.xs)[:,1], label="irisc")
-    # plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
-    # plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
-    # plt.legend()
+    plt.figure("i Risk trajectory plot")
+    plt.plot(np.array(irisc_solver.xs)[:,0],np.array(irisc_solver.xs)[:,1], label="irisc")
+    plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
+    plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
+    plt.legend()
 
-    # plt.show()
+
+
+    x_sim = [x0]
+    xhat_sim = [x0]
+    cov_sim = [initial_covariance]
+    y_sim = [x0]
+    u_sim = []
+    # acceleration model 
+    dv_model = point_cliff.PointMassDynamics()
+    q_next = np.zeros(2)
+    v_next = np.zeros(2)
+    
+    for t in range(horizon-1): 
+        if t == 0:
+            u_prev = None 
+        else:
+            u_prev = u_sim[-1]
+        # u_sim += [irisc_solver.controllerStep(t, y_sim[t], u_prev)]
+        err = ddp_solver.problem.runningModels[t].state.diff(ddp_solver.xs[t], x_sim[t])
+        u_sim += [ddp_solver.us[t]- ddp_solver.K[t].dot(err)]
+        dv = dt*dv_model(x_sim[-1], u_sim[-1]) # get acceleration 
+
+        v_next[:] = x_sim[-1][2:] + dv 
+        q_next[:] = x_sim[-1][:2] + dt* x_sim[-1][2:] + .5 * dt*dv 
+        x_new = np.hstack([q_next, v_next])
+        x_sim += [irisc_uncertainty.sample_process(t, x_new, u_sim[-1])]
+        y_sim += [irisc_uncertainty.sample_measurement(t, x_sim[-2], u_sim[-1])]
+
+
+    plt.figure("DDP trajectory plot")
+    plt.plot(np.array(irisc_solver.xs)[:,0],np.array(irisc_solver.xs)[:,1], label="ddp")
+    plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
+    plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
+    plt.legend()
+
+    plt.show()
