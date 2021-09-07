@@ -57,10 +57,10 @@ if __name__ == "__main__":
     irisc_solver.setCallbacks([crocoddyl.CallbackLogger(), crocoddyl.CallbackVerbose()])
 
     irisc_xs = [x0]*horizon
-    irisc_us = [np.zeros(2)]*(horizon-1)
-
-    irisc_xs = [x0 for xi in ddp_solver.xs] 
     irisc_us = [np.array([0., 9.81]) for _ in ddp_solver.us]
+
+    # irisc_xs = [x0 for xi in ddp_solver.xs] 
+    # irisc_us = [np.array([0., 9.81]) for _ in ddp_solver.us]
 
     irisc_converged = irisc_solver.solve(irisc_xs, irisc_us, MAX_ITER, False)
 
@@ -106,7 +106,7 @@ if __name__ == "__main__":
         y_sim += [irisc_uncertainty.sample_measurement(t, x_sim[-2], u_sim[-1])]
 
 
-    plt.figure("i Risk trajectory plot")
+    plt.figure("iRiSC trajectory plot")
     plt.plot(np.array(irisc_solver.xs)[:,0],np.array(irisc_solver.xs)[:,1], label="irisc")
     plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
     plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
@@ -142,7 +142,7 @@ if __name__ == "__main__":
 
 
     plt.figure("DDP trajectory plot")
-    plt.plot(np.array(irisc_solver.xs)[:,0],np.array(irisc_solver.xs)[:,1], label="ddp")
+    plt.plot(np.array(ddp_solver.xs)[:,0],np.array(ddp_solver.xs)[:,1], label="ddp")
     plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
     plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
     plt.legend()

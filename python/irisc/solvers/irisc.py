@@ -99,7 +99,7 @@ class RiskSensitiveSolver(SolverAbstract):
         self.x_reg = regInit if regInit is not None else self.regMin
         self.u_reg = regInit if regInit is not None else self.regMin
         for i in range(maxiter):
-            print("running iteration no. %s".center(LINE_WIDTH,'#')%i)
+            # print("running iteration no. %s".center(LINE_WIDTH,'#')%i)
             recalc = True   # this will recalculated derivatives in Compute Direction 
             while True:     # backward pass with regularization 
                 try: 
@@ -135,6 +135,7 @@ class RiskSensitiveSolver(SolverAbstract):
             if a == self.alphas[-1] :  
                 self.increaseRegularization()
                 if self.x_reg == self.regMax:
+                    print(" Maximum Regularixation Reached with no Convergence ".center(LINE_WIDTH,'='))
                     return False # self.xs, self.us, False
             
             self.stepLength = a
@@ -331,7 +332,6 @@ class RiskSensitiveSolver(SolverAbstract):
         # backward pass variables 
         self.M = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
         self.Kfb = [np.zeros([p.nu, p.state.ndx]) for p in self.problem.runningModels] 
-        print(len(self.Kfb))
         self.kff = [np.zeros(p.nu) for p in self.problem.runningModels]
         self.V = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
         self.v = [np.zeros(p.state.ndx) for p in self.models()]   
