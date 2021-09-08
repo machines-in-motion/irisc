@@ -1,4 +1,5 @@
-import numpy as np 
+import numpy as np
+from numpy.core.fromnumeric import transpose 
 import scipy.linalg as scl
 
 from crocoddyl import SolverAbstract
@@ -277,11 +278,13 @@ class RiskSensitiveSolver(SolverAbstract):
             self.x_reg = self.regMin
         self.u_reg = self.x_reg
 
-    def pastStressEstimate(self, t, u, y, x_hat, P): 
+    def pastStressEstimate(self, t, xcheck, u, y, x_hat, P): 
         p_model = self.problem.runningModels[t]
         m_model = self.uncertainty.runningModels[t]
         p_data = self.problem.runningDatas[t]
         m_data = self.uncertainty.runningDatas[t]
+        p_model.calc(p_data, x_hat, u)
+        p_model.calcDiff(p_data, x_hat, u)
         # compute deviations 
         del_xhat = p_model.state.diff(self.xs[t], x_hat)
         del_y = m_model.measurement_deviation(y, self.xs[t]) 
@@ -332,7 +335,20 @@ class RiskSensitiveSolver(SolverAbstract):
         del_xcheck = scl.cho_solve(Lb_dx_ch, right_dx_ch)
 
         xcheck = p_model.state.integrate(self.xs[t], del_xcheck)
-        return xcheck, self.us[t-1]
+        
+        right_kff = P.dot(self.v[t])
+        kff = scl.cho_solve(Lb_dx_ch, right_kff)
+        self.k[t-1] = self.us[t-1] + self.sigma*self.Kfb[t-1].dot(kff)
+
+        right_Kfb = self.Kfb[t-1].T 
+        tran_left_dx_ch = left_dx_ch.T 
+        Lb_tran_dx_ch = scl.cho_factor(tran_left_dx_ch, lower=True)
+        Kfb = scl.cho_solve(Lb_tran_dx_ch, right_Kfb)
+
+        
+        self.K[t-1] = Kfb.T  
+        ui = self.k[t-1] - self.K[t-1].dot(del_xhat)
+        return xcheck, ui 
 
 
 
