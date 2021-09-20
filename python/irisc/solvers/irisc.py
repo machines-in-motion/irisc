@@ -35,17 +35,20 @@ class RiskSensitiveSolver(SolverAbstract):
         self.regMax = 1e9
         self.regMin = 1e-9
         self.th_step = .5
-        self.th_stop = 1.e-9 
+        self.th_stop = 2.e-3 # 1.e-9 
         self.n_little_improvement = 0 
         self.gap_tolerance = 1.e-6
         self.cost_try = 0.
         # 
         self.withMeasurement = withMeasurement 
         self.withGaps = False 
+
+        self.rv_dim = 0 
+        self.a = 1.e-3 # alpha for the unscented transform 
         # 
         self.allocateData()
-
-
+        # 
+        self.initialize_unscented_transform()
 
     def models(self):
         mod = [m for m in self.problem.runningModels]
@@ -54,14 +57,12 @@ class RiskSensitiveSolver(SolverAbstract):
 
     def calc(self):
         # compute cost and derivatives at deterministic nonlinear trajectory 
-        self.cost = self.problem.calc(self.xs, self.us)
+        self.problem.calc(self.xs, self.us)
         self.problem.calcDiff(self.xs, self.us)
         self.uncertainty.calc(self.xs, self.us) # compute H, Omega, Gamma 
     
     def computeGaps(self):
         raise NotImplementedError("computeGaps Method Not Implemented yet")
-    
-    
 
     def computeDirection(self, recalc=True):
         if recalc:
@@ -69,17 +70,15 @@ class RiskSensitiveSolver(SolverAbstract):
             self.calc()
         if VERBOSE: print("Going into Backward Pass from compute direction")
         self.backwardPass() 
-
         
-
     def tryStep(self, stepLength):
-        self.forwardPass(stepLength)
+        # self.forwardPass(stepLength)
+        self.unscentedForwardPass(stepLength)
         return self.cost - self.cost_try 
 
     def expectedImprovement(self):
         return np.array([0.]), np.array([0.])
         
-
     def stoppingCriteria(self):
         """ it will be feedforward norm along the trajectory for now """
         knormSquared = [ki.dot(ki) for ki in self.kff]
@@ -87,16 +86,17 @@ class RiskSensitiveSolver(SolverAbstract):
         return knorm
         
     def solve(self, init_xs=None, init_us=None, maxiter=100, isFeasible=True, regInit=None):
-        
         if isFeasible:
             self.setCandidate(init_xs, init_us, True) 
             if VERBOSE: print("solve setCandidate works just fine ")
         else: # for now if not feasible, force rollout 
             xs = self.problem.rollout(init_us)
-            self.setCandidate(xs, init_us, True)
+            self.setCandidate(self.xs, init_us, True)
+            self.unscentedForwardPass(1.)
+            self.cost = self.cost_try
+            print("initial cost is %s"%self.cost)
 
         self.n_little_improvement = 0
-
         self.x_reg = regInit if regInit is not None else self.regMin
         self.u_reg = regInit if regInit is not None else self.regMin
         for i in range(maxiter):
@@ -110,7 +110,7 @@ class RiskSensitiveSolver(SolverAbstract):
                         print("logging initial gains")
                         self.kff_init = [ki for ki in self.kff]
                         self.Kfb_init = [ki for ki in self.Kfb]
-                        self.cost = 1.e+45
+                        # self.cost = 1.e+45
                 except:
                     print("compute direcrtion failed")
                     pass 
@@ -133,11 +133,11 @@ class RiskSensitiveSolver(SolverAbstract):
                     continue 
             
                 if self.dV > 0.: # Cost has decreased, accept step 
+                    print("step accepted at iteration %s for alpha %s"%(i,a))
                     self.setCandidate(self.xs_try, self.us_try, True)
                     self.cost = self.cost_try 
                     break # stop line search and proceed to next iteration 
         
-
             if a > self.th_step: # decrease regularization if alpha > .5 
                 self.decreaseRegularization()
             if a == self.alphas[-1] :  
@@ -156,7 +156,7 @@ class RiskSensitiveSolver(SolverAbstract):
             if  self.stop < self.th_stop:
                 self.n_little_improvement += 1
 
-            if self.n_little_improvement == 10:
+            if self.n_little_improvement == 5:
                 print('Solver converged with little improvement in the last 10 iterations')
                 return True # self.xs, self.us, True
 
@@ -176,65 +176,35 @@ class RiskSensitiveSolver(SolverAbstract):
                                                         self.problem.runningDatas,
                                                         self.uncertainty.runningModels,  
                                                         self.uncertainty.runningDatas)):
-            
             # print("computing node %s".center(LINE_WIDTH, '=')%t)
             inv_V = np.linalg.inv(self.V[t+1])
-            # print("inv_V")
             if VERBOSE: print("inv V[%s]"%t)
             self.M[t] = np.linalg.inv(self.sigma * udata.Omega + inv_V)
-
-            # print(" M[t]")
-            # print("M[t] is : \n", self.M[t])
             if VERBOSE: print("M[%s]"%t)
             N_t = self.v[t+1] - self.sigma * self.M[t].dot(udata.Omega).dot(self.v[t+1])
-            # print(" N[t]")
-            # print("N[t] is : \n", N_t)
             if VERBOSE: print("N[%s]"%t)
             # 
             uleft = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu) #+ self.u_reg*np.eye(model.nu)
-
-            # print("uleft")
-            # print("uleft is : \n", uleft)
-            # print("Quu \n", uleft)
             Lb = scl.cho_factor(uleft, lower=True)
-            # print(" Lb[t]")
             uff_right = data.Lu + data.Fu.T.dot(self.M[t].dot(self.fs[t+1]) + N_t)
-            # print(" kff[t] right ")
-            # print("uff_right is : \n", uff_right)
             ufb_right = data.Lxu.T + data.Fu.T.dot(self.M[t]).dot(data.Fx) 
-            # print(" Kfb[t] right")
-            # print("ufb_right is : \n", ufb_right)
-
-            
-            # print("Qxu \n", ufb_right)
-
-            # print("K fb \n", scl.cho_solve(Lb, ufb_right))
             # 
             self.kff[t][:] = scl.cho_solve(Lb, uff_right)
-            # print(" kff[t]")
-            # print("kff is : \n", self.kff[t])
             if VERBOSE: print("kff[%s]"%t)
             self.Kfb[t][:, :] = scl.cho_solve(Lb, ufb_right)
-            # print(" Kfb[t]")
-            # print("kfb is : \n", self.Kfb[t])
             if VERBOSE: print("Kfb[%s]"%t)
             # aux term 
             A_BK = data.Fx - data.Fu.dot(self.Kfb[t])
-            # print(" A_BK")
             # hessian 
             self.V[t][:,:] = data.Lxx + self.Kfb[t].T.dot(data.Luu).dot(self.Kfb[t]) - data.Lxu.dot(self.Kfb[t]) - self.Kfb[t].T.dot(data.Lxu.T)
             self.V[t][:,:] += A_BK.T.dot(self.M[t]).dot(A_BK) #+ self.x_reg*np.eye(model.state.ndx)
             self.V[t][:,:] = .5 *(self.V[t] + self.V[t].T) # ensure symmetry 
-            # print("V[t]")
             if VERBOSE: print("V[%s]"%t)
             # gradient 
             self.v[t][:] = data.Lx + self.Kfb[t].T.dot(data.Luu).dot(self.kff[t]) - self.Kfb[t].T.dot(data.Lu) - data.Lxu.dot(self.kff[t])
             self.v[t][:] += A_BK.T.dot(self.M[t]).dot(self.fs[t+1]- data.Fu.dot(self.kff[t])) 
             self.v[t][:] += A_BK.T.dot(N_t)
-            if VERBOSE: print("v[%s]"%t)
-            # print("v[t]")
-            # if t == (self.problem.T - 5):
-            #     raise BaseException("Stopping backward pass here ")     
+            if VERBOSE: print("v[%s]"%t)  
 
     def forwardPass(self, stepLength, warning='error'):
         ctry = 0
@@ -264,7 +234,6 @@ class RiskSensitiveSolver(SolverAbstract):
         self.cost_try = ctry
         self.isFeasible = True 
         return self.xs_try, self.us_try, ctry
-
 
     def increaseRegularization(self):
         self.x_reg *= self.regFactor
@@ -310,7 +279,6 @@ class RiskSensitiveSolver(SolverAbstract):
         x_next = p_model.state.integrate(self.xs[t+1], estimate_dx)
         return x_next, P_next
 
-
     def controllerStep(self, t, x_hat, P, interpolation=0.): 
         """ runs a single control update step which includes 
         1. compute past stress estimate \hat{x}_t , P_t, G_t 
@@ -333,38 +301,27 @@ class RiskSensitiveSolver(SolverAbstract):
         Lb_dx_ch = scl.cho_factor(left_dx_ch , lower=True) 
         right_dx_ch = del_xhat - self.sigma * P.dot(self.v[t])
         del_xcheck = scl.cho_solve(Lb_dx_ch, right_dx_ch)
-
+        #
         xcheck = p_model.state.integrate(self.xs[t], del_xcheck)
-        
+        #
         right_kff = P.dot(self.v[t])
         kff = scl.cho_solve(Lb_dx_ch, right_kff)
         self.k[t-1] = self.us[t-1] + self.sigma*self.Kfb[t-1].dot(kff)
-
+        #
         right_Kfb = self.Kfb[t-1].T 
         tran_left_dx_ch = left_dx_ch.T 
         Lb_tran_dx_ch = scl.cho_factor(tran_left_dx_ch, lower=True)
-        Kfb = scl.cho_solve(Lb_tran_dx_ch, right_Kfb)
-
-        
+        Kfb = scl.cho_solve(Lb_tran_dx_ch, right_Kfb) 
+        #
         self.K[t-1] = Kfb.T  
         ui = self.k[t-1] - self.K[t-1].dot(del_xhat)
         return xcheck, ui 
 
-
-
     def perfectObservationControl(self, t, x): 
         err = self.problem.runningModels[t].state.diff(self.xs[t], x)
-        # print("error norm\n", np.linalg.norm(err))
-        # print("feedback norm norm\n",np.linalg.norm(self.Kfb[t]))
-        # print("max feedback gain\n",np.amax(np.abs(self.Kfb[t])))
         control = self.us[t] - self.Kfb[t].dot(err)
         return control 
 
-
-
-
-    
-   
     def allocateData(self):
         """  Allocate memory for all variables needed, control, state, value function and estimator.
         """
@@ -405,11 +362,90 @@ class RiskSensitiveSolver(SolverAbstract):
         self.Kfb_init = None # first iteration 
 
 
-        # print(len(self.V))
-        # print(len(self.problem.runningModels))
-        # print(len(self.problem.runningDatas))
-        # print(len(self.uncertainty.runningModels))
-        # print(len(self.uncertainty.runningDatas))
 
+    def initialize_unscented_transform(self):
+        # for now this is demo specific, this would have to be initialized in a cleaner way 
+        self.uncertainty.calc(self.xs, self.us) # compute H, Omega, Gamma 
+        self.ndxs = [p.state.ndx for p in self.models()] 
+        self.rv_dim = sum(self.ndxs) 
+        self.sample_size = 2*self.rv_dim + 1
+        self.samples = np.zeros([self.rv_dim, self.sample_size]) 
+        self.sample_costs = np.zeros([len(self.ndxs), self.sample_size])
+        # this is actually on the disturbance sample, not the actual trajectory 
+        self.lam = (self.a**2 - 1) * self.rv_dim
+        self.w0 = self.lam/(self.rv_dim + self.lam) 
+        self.wi = .5/(self.rv_dim + self.lam)
+        self.P = np.zeros([self.rv_dim, self.rv_dim])
+        # fill the P matrix, scale it then compute its square root 
+        j = 0 
+        for i, m in enumerate(self.models()):
+            if i == 0:
+                self.P[j:j+m.state.ndx, j:j+m.state.ndx] = self.uncertainty.P0
+            else:
+                self.P[j:j+m.state.ndx, j:j+m.state.ndx] = self.uncertainty.runningDatas[i-1].Omega 
+            j += m.state.ndx
+        
+        self.P *= (self.rv_dim + self.lam)
+        self.rootP = scl.sqrtm(self.P)
+        # loop and compute the samples 
 
+        for i in range(self.rv_dim): 
+            self.samples[:, i+1] = self.rootP[:,i] 
+            self.samples[:, i+1+self.rv_dim] = - self.rootP[:, i]
 
+    def expected_cost(self): 
+        costs = []
+        for i in range(self.sample_size):
+            if i == 0:
+                costs += [self.w0 * np.exp(-.5*self.sigma *np.sum(self.sample_costs[:,i])) ]
+            else:
+                costs += [self.wi * np.exp(-.5*self.sigma *np.sum(self.sample_costs[:,i])) ]
+         
+        ctry = - (2./self.sigma)*sum(costs)
+        return ctry
+
+    def unscentedForwardPass(self, stepLength, warning='error'):
+        self.cost_try = 0
+        self.xs_try[0] = self.xs[0].copy()
+        self.fs[0] = np.zeros(self.problem.runningModels[0].state.ndx)
+
+        for i in range(self.sample_size): 
+            
+            xs_try = [self.problem.x0] + [np.nan] * self.problem.T
+            us_try =  [np.nan] * self.problem.T
+        
+            for t, (m, d) in enumerate(zip(self.problem.runningModels, self.problem.runningDatas)):
+                # update control 
+                ti = sum(self.ndxs[:t])
+                tf = sum(self.ndxs[:t+1])
+                if i != 0:
+                    xs_try[t] = m.state.integrate(xs_try[t], self.samples[ti:tf, i])
+                us_try[t] = self.us[t] - stepLength*self.kff[t] - \
+                    self.Kfb[t].dot(m.state.diff(self.xs[t], xs_try[t]))
+                
+                with np.warnings.catch_warnings():
+                    np.warnings.simplefilter(warning)
+                    m.calc(d, xs_try[t], us_try[t])
+                # update state 
+                xs_try[t + 1] = d.xnext.copy()  # not sure copy helpful here.
+                self.sample_costs[t, i] = d.cost
+                
+                raiseIfNan([self.sample_costs[t, i], d.cost], BaseException('forward error'))
+                raiseIfNan(xs_try[t + 1], BaseException('forward error'))
+                # store undisturbed trajectory 
+                if i == 0:
+                    self.xs_try[t+1] = xs_try[t+1].copy()
+                    self.us_try[t] = us_try[t].copy()
+                    self.fs[t+1] = np.zeros(m.state.ndx)
+
+            with np.warnings.catch_warnings():
+                np.warnings.simplefilter(warning)
+                fm = self.problem.terminalModel
+                xs_try[-1] = fm.state.integrate(xs_try[-1], self.samples[-fm.state.ndx:,i])
+                self.problem.terminalModel.calc(self.problem.terminalData, xs_try[-1])
+                self.sample_costs[-1, i] = self.problem.terminalData.cost
+            raiseIfNan(self.sample_costs[-1, i], BaseException('forward error'))
+        
+        self.cost_try = self.expected_cost()
+        self.isFeasible = True 
+        return self.xs_try, self.us_try, self.cost_try

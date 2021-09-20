@@ -28,13 +28,13 @@ LINE_WIDTH = 100
 if __name__ == "__main__":
     
     dt = 0.01 
-    horizon = 300 
+    horizon = 100 
     x0 = np.zeros(4)
     initial_covariance = 1.e-3 * np.eye(4)
     process_noise = 1.e-3*np.eye(4)
     # process_noise[1,1] = 1.e-2 
     measurement_noise = 1.e-3*np.eye(4)
-    sensitivity = -.3
+    sensitivity = -.05
     p_models, u_models = point_cliff_problem.full_state_uniform_cliff_problem(dt, horizon, process_noise, measurement_noise)
 
     ddp_problem = crocoddyl.ShootingProblem(x0, p_models[:-1], p_models[-1])
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     irisc_us = [ui for ui in ddp_solver.us] 
     
 
-    # MAX_ITER = 1 
+    MAX_ITER = 10 
     irisc_converged = irisc_solver.solve(irisc_xs, irisc_us, MAX_ITER, False)
 
     # if irisc_converged:
@@ -116,9 +116,10 @@ if __name__ == "__main__":
 
 
     plt.figure("iRiSC trajectory plot")
+    plt.plot(np.array(ddp_solver.xs)[:,0],np.array(ddp_solver.xs)[:,1], label="ddp")
     plt.plot(np.array(irisc_solver.xs)[:,0],np.array(irisc_solver.xs)[:,1], label="irisc")
-    plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
-    plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
+    # plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
+    # plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
     plt.legend()
 
 
@@ -159,11 +160,11 @@ if __name__ == "__main__":
         y_sim += [irisc_uncertainty.sample_measurement(t, x_sim[-2], u_sim[-1])]
 
 
-    plt.figure("DDP trajectory plot")
-    plt.plot(np.array(ddp_solver.xs)[:,0],np.array(ddp_solver.xs)[:,1], label="ddp")
-    plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
-    plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
-    plt.legend()
+    # plt.figure("DDP trajectory plot")
+    # plt.plot(np.array(ddp_solver.xs)[:,0],np.array(ddp_solver.xs)[:,1], label="ddp")
+    # plt.plot(np.array(x_sim)[:,0],np.array(x_sim)[:,1], label="actual")
+    # plt.plot(np.array(y_sim)[:,0],np.array(y_sim)[:,1], label="measured")
+    # plt.legend()
 
 
     t_array = dt*np.arange(horizon-1)
@@ -174,13 +175,13 @@ if __name__ == "__main__":
 
 
     plt.figure("feedback norms")
-    plt.plot(t_array, ddp_kfb_norm, label="ddp kff")
-    plt.plot(t_array, irisc_kfb_norm, label="irisc kff")
+    plt.plot(t_array, ddp_kfb_norm, label="ddp Kfb")
+    plt.plot(t_array, irisc_kfb_norm, label="irisc Kfb")
     plt.legend()
 
     plt.figure("open loop norms")
-    plt.plot(t_array, ddp_open_loop, label="ddp kff")
-    plt.plot(t_array, irisk_open_loop, label="irisc kff")
+    plt.plot(t_array, ddp_open_loop, label="ddp us")
+    plt.plot(t_array, irisk_open_loop, label="irisc us")
     plt.legend()
 
     plt.show()
