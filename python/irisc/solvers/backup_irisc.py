@@ -44,7 +44,7 @@ class RiskSensitiveSolver(SolverAbstract):
         self.withGaps = False 
 
         self.rv_dim = 0 
-        self.a = 1.#e-3 # alpha for the unscented transform 
+        self.a = 1.e-3 # alpha for the unscented transform 
         # 
         self.allocateData()
         # 
@@ -91,7 +91,7 @@ class RiskSensitiveSolver(SolverAbstract):
             if VERBOSE: print("solve setCandidate works just fine ")
         else: # for now if not feasible, force rollout 
             xs = self.problem.rollout(init_us)
-            self.setCandidate(xs, init_us, True)
+            self.setCandidate(self.xs, init_us, True)
             self.unscentedForwardPass(1.)
             self.cost = self.cost_try
             print("initial cost is %s"%self.cost)
@@ -133,7 +133,7 @@ class RiskSensitiveSolver(SolverAbstract):
                     continue 
             
                 if self.dV > 0.: # Cost has decreased, accept step 
-                    # print("step accepted at iteration %s for alpha %s"%(i,a))
+                    print("step accepted at iteration %s for alpha %s"%(i,a))
                     self.setCandidate(self.xs_try, self.us_try, True)
                     self.cost = self.cost_try 
                     break # stop line search and proceed to next iteration 
@@ -170,30 +170,41 @@ class RiskSensitiveSolver(SolverAbstract):
         self.V[-1][:,:] = self.problem.terminalData.Lxx
         self.v[-1][:] = self.problem.terminalData.Lx
 
+        # print("terminal value stored")
+
         for t, (model, data, umodel, udata) in rev_enumerate(zip(self.problem.runningModels,
                                                         self.problem.runningDatas,
                                                         self.uncertainty.runningModels,  
                                                         self.uncertainty.runningDatas)):
-            inv_Wt = udata.invOmega - self.sigma * self.V[t+1]
-            Wt = np.linalg.inv(inv_Wt)
-            Mt = np.eye(model.state.ndx) + self.sigma*self.V[t+1].dot(Wt)
-            Qx = data.Lx + data.Fx.T.dot(Mt).dot(self.v[t+1]) 
-            Qx += data.Fx.T.dot(Mt).dot(self.V[t+1]).dot(self.fs[t+1])
-            Qu = data.Lu + data.Fu.T.dot(Mt).dot(self.v[t+1]) 
-            Qu +=  data.Fu.T.dot(Mt).dot(self.V[t+1]).dot(self.fs[t+1])
-            Qux = data.Lxu.T + data.Fu.T.dot(Mt).dot(self.V[t+1]).dot(data.Fx)
-            Qxx = data.Lxx + data.Fx.T.dot(Mt).dot(self.V[t+1]).dot(data.Fx)
-            Quu = data.Luu + data.Fu.T.dot(Mt).dot(self.V[t+1]).dot(data.Fu)
+            # print("computing node %s".center(LINE_WIDTH, '=')%t)
+            inv_V = np.linalg.inv(self.V[t+1])
+            if VERBOSE: print("inv V[%s]"%t)
+            self.M[t] = np.linalg.inv(self.sigma * udata.Omega + inv_V)
+            if VERBOSE: print("M[%s]"%t)
+            N_t = self.v[t+1] - self.sigma * self.M[t].dot(udata.Omega).dot(self.v[t+1])
+            if VERBOSE: print("N[%s]"%t)
             # 
-            Lb = scl.cho_factor(Quu, lower=True) 
-            self.kff[t][:] = -scl.cho_solve(Lb, Qu)
-            self.Kfb[t][:, :] = -scl.cho_solve(Lb, Qux)
-            #
-            self.v[t][:] = Qx + self.Kfb[t].T.dot(Quu).dot(self.kff[t]) + self.Kfb[t].T.dot(Qu) + Qux.T.dot(self.kff[t]) 
-            self.V[t][:,:] = Qxx + self.Kfb[t].T.dot(Quu).dot(self.Kfb[t]) + self.Kfb[t].T.dot(Qux) + Qux.T.dot(self.Kfb[t]) 
-            self.V[t][:,:] = .5*(self.V[t].T + self.V[t])
-
-
+            uleft = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu) #+ self.u_reg*np.eye(model.nu)
+            Lb = scl.cho_factor(uleft, lower=True)
+            uff_right = data.Lu + data.Fu.T.dot(self.M[t].dot(self.fs[t+1]) + N_t)
+            ufb_right = data.Lxu.T + data.Fu.T.dot(self.M[t]).dot(data.Fx) 
+            # 
+            self.kff[t][:] = scl.cho_solve(Lb, uff_right)
+            if VERBOSE: print("kff[%s]"%t)
+            self.Kfb[t][:, :] = scl.cho_solve(Lb, ufb_right)
+            if VERBOSE: print("Kfb[%s]"%t)
+            # aux term 
+            A_BK = data.Fx - data.Fu.dot(self.Kfb[t])
+            # hessian 
+            self.V[t][:,:] = data.Lxx + self.Kfb[t].T.dot(data.Luu).dot(self.Kfb[t]) - data.Lxu.dot(self.Kfb[t]) - self.Kfb[t].T.dot(data.Lxu.T)
+            self.V[t][:,:] += A_BK.T.dot(self.M[t]).dot(A_BK) #+ self.x_reg*np.eye(model.state.ndx)
+            self.V[t][:,:] = .5 *(self.V[t] + self.V[t].T) # ensure symmetry 
+            if VERBOSE: print("V[%s]"%t)
+            # gradient 
+            self.v[t][:] = data.Lx + self.Kfb[t].T.dot(data.Luu).dot(self.kff[t]) - self.Kfb[t].T.dot(data.Lu) - data.Lxu.dot(self.kff[t])
+            self.v[t][:] += A_BK.T.dot(self.M[t]).dot(self.fs[t+1]- data.Fu.dot(self.kff[t])) 
+            self.v[t][:] += A_BK.T.dot(N_t)
+            if VERBOSE: print("v[%s]"%t)  
 
     def forwardPass(self, stepLength, warning='error'):
         ctry = 0
@@ -386,11 +397,11 @@ class RiskSensitiveSolver(SolverAbstract):
         costs = []
         for i in range(self.sample_size):
             if i == 0:
-                costs += [self.w0 * np.exp(.5*self.sigma *np.sum(self.sample_costs[:,i])) ]
+                costs += [self.w0 * np.exp(-.5*self.sigma *np.sum(self.sample_costs[:,i])) ]
             else:
-                costs += [self.wi * np.exp(.5*self.sigma *np.sum(self.sample_costs[:,i])) ]
+                costs += [self.wi * np.exp(-.5*self.sigma *np.sum(self.sample_costs[:,i])) ]
          
-        ctry =  (2./self.sigma)*np.log(sum(costs))
+        ctry = - (2./self.sigma)*sum(costs)
         return ctry
 
     def unscentedForwardPass(self, stepLength, warning='error'):
@@ -409,7 +420,7 @@ class RiskSensitiveSolver(SolverAbstract):
                 tf = sum(self.ndxs[:t+1])
                 if i != 0:
                     xs_try[t] = m.state.integrate(xs_try[t], self.samples[ti:tf, i])
-                us_try[t] = self.us[t] + stepLength*self.kff[t] + \
+                us_try[t] = self.us[t] - stepLength*self.kff[t] - \
                     self.Kfb[t].dot(m.state.diff(self.xs[t], xs_try[t]))
                 
                 with np.warnings.catch_warnings():
