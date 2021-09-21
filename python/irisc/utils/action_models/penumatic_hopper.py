@@ -1,1 +1,0 @@
-""" model inspired from Sideris and Bobrow """
