@@ -35,7 +35,7 @@ class RiskSensitiveSolver(SolverAbstract):
         self.regMax = 1e9
         self.regMin = 1e-9
         self.th_step = .5
-        self.th_stop = 2.e-3 # 1.e-9 
+        self.th_stop =  1.e-9 
         self.n_little_improvement = 0 
         self.gap_tolerance = 1.e-6
         self.cost_try = 0.
@@ -74,8 +74,7 @@ class RiskSensitiveSolver(SolverAbstract):
                 self.fs[t + 1] = m.state.diff(x, d.xnext)
                 ng += np.linalg.norm(self.fs[t+1])
             
-            if ng<1.e-6:
-                print("now setting feasibility to true")
+            if ng<1.e-9:
                 self.isFeasible = True
             else:
                 self.isFeasible = False 
@@ -145,7 +144,7 @@ class RiskSensitiveSolver(SolverAbstract):
             
                 if self.dV > 0.: # Cost has decreased, accept step 
                     # print("step accepted at iteration %s for alpha %s"%(i,a))
-                    self.setCandidate(self.xs_try, self.us_try, True)
+                    self.setCandidate(self.xs_try, self.us_try, self.isFeasible)
                     self.cost = self.cost_try 
                     break # stop line search and proceed to next iteration 
         
@@ -407,10 +406,10 @@ class RiskSensitiveSolver(SolverAbstract):
     def unscentedForwardPass(self, stepLength, warning='error'):
         self.cost_try = 0
         self.xs_try[0] = self.xs[0].copy()
-
+        m0 = self.problem.runningModels[0]
         for i in range(self.sample_size): 
             
-            xs_try = [self.problem.x0] + [np.nan] * self.problem.T
+            xs_try = [m0.state.integrate(self.problem.x0, (stepLength-1)*self.fs[0])] + [np.nan] * self.problem.T
             us_try =  [np.nan] * self.problem.T
         
             for t, (m, d) in enumerate(zip(self.problem.runningModels, self.problem.runningDatas)):
