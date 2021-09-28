@@ -34,9 +34,9 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         self.w += [1.e+2] # piston position  w[0]
         self.w += [1.] # control  w[1]
         # jump phase 
-        self.w += [1.e+5] # mass height  w[2]
-        self.w += [1.] # mass velocity w[3] 
-        self.w += [1.e-2] # piston position  w[4]
+        self.w += [1.e+3] # mass height  w[2]
+        self.w += [1.e+3] # mass velocity w[3] 
+        self.w += [1.e-3] # piston position  w[4]
         self.w += [1.] # control weight 
         # terminal 
         self.w += [1.e+2] # piston pos
@@ -64,7 +64,7 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
             data.cost = self._terminal_cost(x) 
             data.xout = np.zeros(2)
         else:
-            self.cost = self._running_cost(self.t, x, u)
+            data.cost = self._running_cost(self.t, x, u)
             e = x[1] - x[0]
             data.xout[1] = u[0] 
             if e < 0.:
