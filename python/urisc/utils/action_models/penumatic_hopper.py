@@ -177,13 +177,9 @@ if __name__ =="__main__":
         running_models += [crocoddyl.IntegratedActionModelEuler(diff_hopper, dt)] 
     diff_hopper = DifferentialActionModelHopper(T, T, True) 
     terminal_model = crocoddyl.IntegratedActionModelEuler(diff_hopper, dt) 
-    # print(" Constructing integrated models completed ".center(LINE_WIDTH, '-'))
-
     problem = crocoddyl.ShootingProblem(x0, running_models, terminal_model)
-    # print(" Constructing shooting problem completed ".center(LINE_WIDTH, '-'))
-    
+
     fddp = crocoddyl.SolverFDDP(problem)
-    # print(" Constructing FDDP solver completed ".center(LINE_WIDTH, '-'))
     fddp.setCallbacks([
     crocoddyl.CallbackLogger(),
     crocoddyl.CallbackVerbose()
@@ -202,10 +198,6 @@ if __name__ =="__main__":
     plt.plot(time_array,np.array(fddp.xs)[:,0], label="Mass Height")
     plt.plot(time_array,np.array(fddp.xs)[:,1], label="Piston Height")
 
-    # # t = np.arange(0, 1., 1.e-3)
-    # # e = [1.e3*np.exp(ti*10.) for ti in t]
-    # # plt.figure("some fig")
-    # # plt.plot(t,e)
     plt.show()
 
 

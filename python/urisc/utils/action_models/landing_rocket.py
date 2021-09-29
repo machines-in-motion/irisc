@@ -74,13 +74,13 @@ class DifferentialActionModelRocket2D(crocoddyl.DifferentialActionModelAbstract)
         self.T = T 
         self.w = []
         # running cost only on controls 
-        self.w += [1.e-3]  # w[0]
-        self.w += [1.e-3]  # w[1]
+        self.w += [1.e-1]  # w[0]
+        self.w += [1.e-1]  # w[1]
         # running cost state weights 
-        self.w += [1.e+3] # x pos  w[2] 
-        self.w += [1.e+3] # y pos  w[3]
-        self.w += [1.e-3] # orientation  w[4] 
-        self.w += [1.e-1] # velcities   w[5]
+        self.w += [0.] # x pos  w[2] 
+        self.w += [0.] # y pos  w[3]
+        self.w += [0.] # orientation  w[4] 
+        self.w += [1.e-3] # velcities   w[5]
         # terminal cost 
         self.w += [1.e+5] # w[6]
         self.w += [1.e+5] # w[7]
@@ -169,7 +169,7 @@ class DifferentialActionModelRocket2D(crocoddyl.DifferentialActionModelAbstract)
 
 if __name__=="__main__": 
 
-    x0 = np.array([10., 20., np.pi/6, 0., 0., 0.]) 
+    x0 = np.array([10., 20., 0., 0., 0., 0.]) 
     MAX_ITER = 1000
     T = 300 
     dt = 1.e-2
@@ -198,7 +198,7 @@ if __name__=="__main__":
 
     plt.figure("trajectory plot")
     plt.plot(np.array(fddp.xs)[:,0],np.array(fddp.xs)[:,1], label="Rocket Position")
-
+    plt.gca().set_aspect('equal')
 
     plt.figure("rocket orientation")
     plt.plot(time_array,np.array(fddp.xs)[:,2], label="Orientation")
