@@ -36,3 +36,11 @@ if __name__ == "__main__":
 
 
     print("n integration steps = %s"%sim.n_steps)
+
+    sim.simulate()
+    
+    plt.figure("trajectory plot")
+    plt.plot(time_array,np.array(sim.xsim)[:,0], label="Mass Height")
+    plt.plot(time_array,np.array(sim.xsim)[:,1], label="Piston Height")
+    plt.legend()
+    plt.show()

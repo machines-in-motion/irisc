@@ -11,6 +11,7 @@ class AbstractSimulator:
         self.dt = sim_dt 
         self.controller = controller
         self.estimator = estimator 
+        self.horizon = self.controller.horizon
 
     def step(self):
         raise NotImplementedError("method step not implemented for AbstractSimulator")
@@ -43,8 +44,8 @@ class HopperSimulator(AbstractSimulator):
         self.inv_m = 1./self.mass  
 
         # few simulation parameters 
-        self.k = 1.e+5 
-        self.b = 300.  
+        self.k = 1.e+3 
+        self.b = 50.  
         self.controller_dt = self.controller.dt  
         self.n_steps = int(self.controller_dt/self.dt)
         self.process_noise = process_noise 
@@ -84,7 +85,11 @@ class HopperSimulator(AbstractSimulator):
 
     def simulate(self): 
         self.xsim += [self.x0.copy()]
-        for i in range(self.horizon):
-            for _ in range(self.n_steps):
-                ui = self.controller(self.xsim[-1]) 
-                self.xsim += [self.step(self.xsim[-1], ui)]
+        xi = self.x0.copy()
+        for t in range(self.horizon):
+            for i in range(self.n_steps):
+                ui = self.controller(t, i/self.n_steps, xi)
+                xi = self.step(xi, ui) 
+                  
+            self.xsim += [xi]
+            self.usim += [ui]

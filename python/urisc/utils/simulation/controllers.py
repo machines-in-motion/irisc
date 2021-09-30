@@ -8,10 +8,10 @@ class AbstractController:
             self.states += [m.state]
         self.xs = xs 
         self.us = us
-        self.T = len(self.xs)
+        self.horizon = len(self.xs) -1
 
     def interpolate_xs(self, t, d):
-        if t == self.T -1:
+        if t == self.horizon:
             # terminal state, no further interpolation 
             return self.xs[t]
         else: 
@@ -26,7 +26,7 @@ class AbstractController:
             xs: reference state 
             xa: actual state 
         """
-        return self.states.diff(xs, xa) 
+        return self.states[t].diff(xs, xa) 
     
         
 class DDPController(AbstractController):
@@ -39,7 +39,7 @@ class DDPController(AbstractController):
         """ takes a feedback state, control index, and simulation index
         and returns a control signal u """ 
         xdes = self.interpolate_xs(t,d)
-        err = self.compute_error(xdes, x)
+        err = self.compute_error(t, xdes, x)
         u = self.us[t] + self.K[t].dot(err)
         return u
 
