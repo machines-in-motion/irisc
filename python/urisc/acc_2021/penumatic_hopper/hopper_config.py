@@ -1,6 +1,7 @@
 """ ideally has all config parameters for the problem """
 from pickle import FALSE
 import numpy as np 
+import os,sys 
 
 LINE_WIDTH = 100 
 PLOT_FIGS = False 
@@ -16,3 +17,4 @@ dt = 1.e-2
 
 WHICH_CONTROLLER = "ddp"
 WITH_NOISE = [False, False] # process and measurement noise flags  
+solutions_path = os.path.abspath('solutions/')

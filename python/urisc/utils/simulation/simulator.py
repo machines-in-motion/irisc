@@ -43,15 +43,21 @@ class HopperSimulator(AbstractSimulator):
         self.inv_m = 1./self.mass  
 
         # few simulation parameters 
-        self.k = 1.e+3 
-        self.b = 240.  
+        self.k = 1.e+5 
+        self.b = 300.  
         self.controller_dt = self.controller.dt  
         self.n_steps = int(self.controller_dt/self.dt)
         self.process_noise = process_noise 
         self.measurement_noise = measurement_noise
-        
-        self.pnoise_flag = False 
-        self.mnoise_flag = False 
+        # 
+        if self.process_noise is not None:
+            self.pnoise_flag = True 
+        else:
+            self.pnoise_flag = False 
+        if self.measurement_noise is not None:
+            self.mnoise_flag = True 
+        else: 
+            self.mnoise_flag = False 
 
     def step(self, x, u):
         """ computes one simulation step """

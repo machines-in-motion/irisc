@@ -1,6 +1,5 @@
 import numpy as np 
 
-
 class AbstractController:
     def __init__(self, action_models, xs, us):
         self.action_models = action_models
@@ -12,10 +11,12 @@ class AbstractController:
         self.T = len(self.xs)
 
     def interpolate_xs(self, t, d):
-        pass 
-
-    def interpolate_us(self, t, d):
-        pass
+        if t == self.T -1:
+            # terminal state, no further interpolation 
+            return self.xs[t]
+        else: 
+            dx = self.states[t].diff(self.xs[t], self.xs[t+1])
+            return self.states[t].integrate(self.xs[t], d*dx)  
 
     def compute_error(self, t, xs, xa):
         """ computes error between reference state and
@@ -25,18 +26,22 @@ class AbstractController:
             xs: reference state 
             xa: actual state 
         """
-        pass 
+        return self.states.diff(xs, xa) 
     
         
 class DDPController(AbstractController):
-    def __init__(self, action_models, xs, us, K):
+    def __init__(self, action_models, xs, us, K, dt=1.e-2):
         super().__init__(action_models, xs, us)
         self.K = K 
+        self.dt = 1.e-2 
 
     def __call__(self, t, d, x):
         """ takes a feedback state, control index, and simulation index
         and returns a control signal u """ 
-        pass 
+        xdes = self.interpolate_xs(t,d)
+        err = self.compute_error(xdes, x)
+        u = self.us[t] + self.K[t].dot(err)
+        return u
 
     
 
