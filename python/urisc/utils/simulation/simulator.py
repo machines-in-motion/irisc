@@ -19,7 +19,8 @@ class AbstractSimulator:
 
 
 class HopperSimulator(AbstractSimulator):
-    def __init__(self, dynamics, controller, estimator, terrain, x0, horizon, sim_dt=1.e-4):
+    def __init__(self, dynamics, controller, estimator, process_noise, 
+                measurement_noise, x0, horizon, sim_dt=1.e-4):
         """ 1D penumatic hopper simulator, using stiff visco-elastic contacts 
         Args: 
             model:
@@ -46,6 +47,11 @@ class HopperSimulator(AbstractSimulator):
         self.b = 240.  
         self.controller_dt = self.controller.dt  
         self.n_steps = int(self.controller_dt/self.dt)
+        self.process_noise = process_noise 
+        self.measurement_noise = measurement_noise
+        
+        self.pnoise_flag = False 
+        self.mnoise_flag = False 
 
     def step(self, x, u):
         """ computes one simulation step """
@@ -71,7 +77,8 @@ class HopperSimulator(AbstractSimulator):
 
 
     def simulate(self): 
-
+        self.xsim += [self.x0.copy()]
         for i in range(self.horizon):
             for _ in range(self.n_steps):
-                pass 
+                ui = self.controller(self.xsim[-1]) 
+                self.xsim += [self.step(self.xsim[-1], ui)]
