@@ -1,0 +1,1 @@
+""" solves risk sensitive control for hopper and stores the solution """

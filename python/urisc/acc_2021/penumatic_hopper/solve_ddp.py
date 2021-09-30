@@ -1,0 +1,1 @@
+""" runs ddp solver for hopper jumping and stores the solution """
