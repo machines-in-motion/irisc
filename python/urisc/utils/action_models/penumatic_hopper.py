@@ -46,8 +46,12 @@ class PenumaticHopped1D:
         dfdu[1,0] = 1. 
         return dfdx, dfdu
 
-
-
+    def discrete_dynamics(self, x, u, dt):
+        """ computes state transitions for a given dt """
+        dv = self.nonlinear_dynamics(x,u) 
+        qnext = x[:2] + dt*x[2:] + .5*dv*dt**2 
+        vnext = x[2:] + dt*dv 
+        return qnext, vnext 
 
 
 
@@ -63,11 +67,7 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         state =  crocoddyl.StateVector(nx)
         crocoddyl.DifferentialActionModelAbstract.__init__(self, state, nu, ndx)
         self.dynamics = PenumaticHopped1D()
-        # self.g = - 9.81 
         self.isTerminal = isTerminal
-        # self.mass = 1. 
-        # self.k = 500. 
-        # self.alpha = .01
         self.z_des = 3.
         self.scale = .5/T  
         #
@@ -83,11 +83,11 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         self.w += [1.e+3] # mass height  w[2]
         self.w += [1.e+3] # mass velocity w[3] 
         self.w += [1.e+1] # piston position  w[4]
-        self.w += [1.e+1] # control weight 
+        self.w += [1.e+0] # control weight 
         # terminal 
-        self.w += [1.e+2] # mass position 
-        self.w += [1.e+2] # piston position 
-        self.w += [1.e+2] # mass and piston velocties 
+        self.w += [1.e+3] # mass position 
+        self.w += [1.e+3] # piston position 
+        self.w += [1.e+3] # mass and piston velocties 
         
 
     def _running_cost(self, t, x, u): 
@@ -197,6 +197,16 @@ if __name__ =="__main__":
     plt.figure("trajectory plot")
     plt.plot(time_array,np.array(fddp.xs)[:,0], label="Mass Height")
     plt.plot(time_array,np.array(fddp.xs)[:,1], label="Piston Height")
+
+
+    plt.figure("control inputs")
+    plt.plot(time_array[:-1],np.array(fddp.us)[:,0], label="control inputs")
+
+
+    plt.figure("feedback gains")
+    for i in range(4):
+        plt.plot(time_array[:-1],np.array(fddp.K)[:,i], label="$K_%s$"%i)
+    plt.legend()
 
     plt.show()
 

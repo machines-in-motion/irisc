@@ -15,3 +15,8 @@ def create_point_cliff_models(dt, horizon):
     return models 
 
 
+
+
+def create_penumatic_hopper_models(dt, horizon): 
+    models = []
+    return models 
