@@ -12,12 +12,13 @@ class PenumaticHopped1D:
         self.g = 9.81 
         self.mass = 1. 
         self.k = 500. 
-        self.alpha = 1.e-2 
+        self.alpha = 1.e-2
         self.inv_m = 1./self.mass 
+        self.d0 = .5 # nominal position of foot relative to mass 
 
     def nonlinear_dynamics(self, x, u):
         acc = np.zeros(2)
-        e = x[1] - x[0]
+        e = x[1] - x[0] + self.d0
         acc[1] = u[0] 
         if e < 0.:
             acc[0] = -self.g
@@ -33,7 +34,7 @@ class PenumaticHopped1D:
         dfdx = np.zeros([2,4])
         dfdu = np.zeros([2,1])
         # 
-        e = x[1] - x[0]
+        e = x[1] - x[0] + self.d0
         if e<0.:
             pass                  
         elif e >= 0. and e < self.alpha:
@@ -52,6 +53,7 @@ class PenumaticHopped1D:
         qnext = x[:2] + dt*x[2:] + .5*dv*dt**2 
         vnext = x[2:] + dt*dv 
         return qnext, vnext 
+
 
 
 
@@ -77,29 +79,31 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         self.t2 = self.t1 + 2
         self.w = [] 
         # running cost weights 
-        self.w += [1.e+2] # piston position  w[0]
-        self.w += [1.e+0] # control  w[1]
+        self.w += [1.e+3] # mass position  w[0]
+        self.w += [1.e+0] # piston position  w[1]
+        self.w += [1.e+0] # control w[2]
         # jump phase 
-        self.w += [1.e+3] # mass height  w[2]
-        self.w += [1.e+3] # mass velocity w[3] 
-        self.w += [1.e+1] # piston position  w[4]
-        self.w += [1.e+0] # control weight 
+        self.w += [1.e+3] # mass height  w[3]
+        self.w += [1.e+3] # mass velocity w[4] 
+        self.w += [1.e+1] # piston position  w[5]
+        self.w += [1.e+0] # control weight w[6]
         # terminal 
-        self.w += [1.e+3] # mass position 
-        self.w += [1.e+3] # piston position 
-        self.w += [1.e+3] # mass and piston velocties 
+        self.w += [1.e+4] # mass position w[7]
+        self.w += [1.e+4] # piston position w[8]
+        self.w += [1.e+3] # mass and piston velocties w[9] 
         
 
     def _running_cost(self, t, x, u): 
         if t<= self.t1 or t > self.t2:
-            cost = self.scale*self.w[0]*x[1]**2 + self.scale*self.w[1]*u[0]**2 
+            cost = self.scale*self.w[0]*(x[0]-self.dynamics.d0)**2 + self.scale*self.w[1]*x[1]**2
+            cost += self.scale*self.w[2]*u[0]**2   
         else:
-            cost = .5*self.w[2]*(x[0]-self.z_des)**2 + self.w[3]*x[2]**2 
-            cost +=  self.w[4]*x[1]**2 + self.w[5]*u[0]**2
+            cost = .5*self.w[3]*(x[0]-self.z_des)**2 + self.w[4]*x[1]**2 
+            cost +=  self.w[5]*x[2]**2 + self.w[6]*u[0]**2
         return cost 
     
     def _terminal_cost(self, x):
-        cost = self.w[6]*x[0]**2 + self.w[7]*x[1]**2 + self.w[8]*x[2:].dot(x[2:])
+        cost = self.w[7]*(x[0]-self.dynamics.d0)**2 + self.w[8]*x[1]**2 + self.w[9]*x[2:].dot(x[2:])
         return cost 
 
     def calc(self, data, x, u=None): 
@@ -127,30 +131,32 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         Lxu = np.zeros([4,1])
         # COST DERIVATIVES 
         if self.isTerminal:
-            Lx[0] = 2.*self.w[6]*x[0]
-            Lxx[0,0] = 2.*self.w[6]  
-            Lx[1] = 2.*self.w[7]*x[1]
-            Lxx[1,1] = 2.*self.w[7]
-            Lx[2] = 2.*self.w[8]*x[2]
-            Lxx[2,2] = 2.*self.w[8]
-            Lx[3] = 2.*self.w[8]*x[3]
-            Lxx[3,3] = 2.*self.w[8]
+            Lx[0] = 2.*self.w[7]*(x[0] - self.dynamics.d0)
+            Lxx[0,0] = 2.*self.w[7]  
+            Lx[1] = 2.*self.w[8]*x[1]
+            Lxx[1,1] = 2.*self.w[8]
+            Lx[2] = 2.*self.w[9]*x[2]
+            Lxx[2,2] = 2.*self.w[9]
+            Lx[3] = 2.*self.w[9]*x[3]
+            Lxx[3,3] = 2.*self.w[9]
         else:
             t = self.t 
             if t<= self.t1 or t > self.t2:
-                Lu[0] = 2*self.scale*self.w[1]*u[0]
-                Luu[0,0] = 2*self.scale*self.w[1]
-                Lx[1] = 2.* self.scale*self.w[0]*x[1]
-                Lxx[1,1] = 2.* self.scale*self.w[0] 
+                Lx[0] = 2.*self.scale * self.w[0]*(x[0]-self.dynamics.d0)
+                Lxx[0,0] = 2.*self.scale * self.w[0]
+                Lx[1] = 2.* self.scale*self.w[1]*x[1]
+                Lxx[1,1] = 2.* self.scale*self.w[1] 
+                Lu[0] = 2*self.scale*self.w[2]*u[0]
+                Luu[0,0] = 2*self.scale*self.w[2]
             else:
-                Lu[0] = 2.*self.w[5]*u[0]
-                Luu[0,0] = 2.*self.w[5]
-                Lx[0] = self.w[2]*(x[0]-self.z_des) 
-                Lxx[0,0] = self.w[2]
+                Lu[0] = 2.*self.w[6]*u[0]
+                Luu[0,0] = 2.*self.w[6]
+                Lx[0] = self.w[3]*(x[0]-self.z_des) 
+                Lxx[0,0] = self.w[3]
                 Lx[1] = 2.*self.w[4]*x[1]
                 Lxx[1,1] = 2.*self.w[4]
-                Lx[2] = 2.*self.w[3]*x[2] 
-                Lxx[2,2] = 2.*self.w[3]
+                Lx[2] = 2.*self.w[5]*x[2] 
+                Lxx[2,2] = 2.*self.w[5]
             # dynamics derivatives 
             Fx, Fu = self.dynamics.derivatives(x,u)
         # COPY TO DATA 
@@ -167,7 +173,7 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
 
 if __name__ =="__main__":
     print(" Testing Penumatic Hopper with DDP ".center(LINE_WIDTH, '#'))
-    x0 = np.array([0., 0., 0., 0.])
+    x0 = np.array([.5, 0., 0., 0.])
     MAX_ITER = 1000
     T = 300 
     dt = 1.e-2
@@ -193,10 +199,15 @@ if __name__ =="__main__":
         print("Solver Did Not Converge !!")
 
     time_array = dt*np.arange(T+1)
-
+    deltas = np.array(fddp.xs)[:,1] - np.array(fddp.xs)[:,0] + np.ones_like(time_array)
     plt.figure("trajectory plot")
     plt.plot(time_array,np.array(fddp.xs)[:,0], label="Mass Height")
     plt.plot(time_array,np.array(fddp.xs)[:,1], label="Piston Height")
+    plt.plot(time_array, 0.*deltas, '--k', linewidth=2., label="ground")
+
+    
+    plt.figure("Penetration")
+    plt.plot(time_array, .5*deltas)
 
 
     plt.figure("control inputs")
