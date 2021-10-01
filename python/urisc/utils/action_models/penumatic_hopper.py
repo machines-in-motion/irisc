@@ -84,8 +84,8 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         self.w += [1.e+0] # control w[2]
         # jump phase 
         self.w += [1.e+3] # mass height  w[3]
-        self.w += [1.e+3] # mass velocity w[4] 
-        self.w += [1.e+1] # piston position  w[5]
+        self.w += [1.e+1] # piston position w[4] 
+        self.w += [1.e+3] # mass velocity  w[5]
         self.w += [1.e+0] # control weight w[6]
         # terminal 
         self.w += [1.e+4] # mass position w[7]

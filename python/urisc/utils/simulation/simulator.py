@@ -37,6 +37,7 @@ class HopperSimulator(AbstractSimulator):
         self.x0 = x0 
         self.xsim = [] # true states 
         self.usim = [] # control inputs 
+        self.fsim = [] # contact forces  
         self.ysim = [] # observations 
         self.xhsim = [] # estimated states 
         self.g = 9.81 
@@ -46,6 +47,8 @@ class HopperSimulator(AbstractSimulator):
         # few simulation parameters 
         self.k = 1.e+5 
         self.b = 300.  
+        self.env = 0. 
+        self.x0[0] += self.env
         self.controller_dt = self.controller.dt  
         self.n_steps = int(self.controller_dt/self.dt)
         self.process_noise = process_noise 
@@ -68,19 +71,19 @@ class HopperSimulator(AbstractSimulator):
         if vnet > 0.:
             fc = 0. 
         else:
-            env = 0. # height of the environment 
+             
             xc = x[0] - x[1] - self.dynamics.d0 # contact point height 
-            if xc > env:
+            if xc > self.env:
                 fc = 0. 
             else:
-                err = env - xc 
+                err = self.env - xc 
                 fc = self.k*err - self.b*vnet
         
         dv[0] = self.inv_m*fc - self.g  
         dv[1] = u[0] 
         xnext[:2] = x[:2] + self.dt*x[2:] + .5*dv*self.dt**2 
         xnext[2:] = x[2:] + self.dt*dv
-        return xnext
+        return xnext, fc 
 
 
     def simulate(self): 
@@ -89,7 +92,8 @@ class HopperSimulator(AbstractSimulator):
         for t in range(self.horizon):
             for i in range(self.n_steps):
                 ui = self.controller(t, i/self.n_steps, xi)
-                xi = self.step(xi, ui) 
+                xi, fi = self.step(xi, ui) 
                   
             self.xsim += [xi]
             self.usim += [ui]
+            self.fsim += [fi]

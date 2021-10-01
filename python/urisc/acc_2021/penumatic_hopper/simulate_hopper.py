@@ -30,7 +30,6 @@ if __name__ == "__main__":
     estimator = None 
     p_noise = None 
     m_noise = None 
-
     sim = simulator.HopperSimulator(hopper_dynamics, controller, estimator, 
                                     p_noise, m_noise, x0, horizon)
 
@@ -40,11 +39,21 @@ if __name__ == "__main__":
     sim.simulate()
     
     trajectory = np.array(sim.xsim)
+
     contact_pt_height = trajectory[:,0] - trajectory[:,1] - .5*np.ones_like(time_array)
+    foot_planned = xs[:,0] - xs[:,1] - .5*np.ones_like(time_array)
+    ground_hieght = sim.env*np.ones_like(time_array)
     plt.figure("trajectory plot")
-    plt.plot(time_array,trajectory[:,0], label="Mass Height")
-    plt.plot(time_array,contact_pt_height, label="Piston Height")
+    plt.plot(time_array,trajectory[:,0], label="Mass DDP")
+    plt.plot(time_array,xs[:,0], '--', label="Mass Planned")
+    plt.plot(time_array,contact_pt_height, label="Foot DDP")
+    plt.plot(time_array, foot_planned, '--', label="foot Planned")
+    plt.plot(time_array,ground_hieght, '--k',linewidth=2.)
     plt.legend()
+
+    plt.figure("Contact Forces")
+    plt.plot(time_array[:-1], sim.fsim)
+
 
 
     plt.show()
