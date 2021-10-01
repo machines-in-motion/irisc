@@ -19,13 +19,13 @@ def full_state_uniform_cliff_problem(dt, horizon, process_noise, measurement_noi
     cliff_running = crocoddyl.IntegratedActionModelEuler(cliff_diff_running, dt) 
     cliff_terminal = crocoddyl.IntegratedActionModelEuler(cliff_diff_terminal, dt) 
     models = [cliff_running]*(horizon-1) + [cliff_terminal]
-
     uncertainty_models = []
     for i, m in enumerate(models[:-1]):
-        # loop only over running models 
         p_model = process_models.FullStateProcess(m, process_noise) 
         m_model = measurement_models.FullStateMeasurement(m, measurement_noise)
         uncertainty_models += [problem_uncertainty.UncertaintyModel(p_model, m_model)]
 
 
     return models, uncertainty_models  
+
+

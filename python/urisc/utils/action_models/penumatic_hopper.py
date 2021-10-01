@@ -10,7 +10,7 @@ LINE_WIDTH = 100
 class PenumaticHopped1D:
     def __init__(self):
         self.g = 9.81 
-        self.mass = 1. 
+        self.mass = 2. 
         self.k = 500. 
         self.alpha = 1.e-2
         self.inv_m = 1./self.mass 
@@ -80,23 +80,27 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         self.w = [] 
         # running cost weights 
         self.w += [1.e+3] # mass position  w[0]
-        self.w += [1.e+0] # piston position  w[1]
+        self.w += [1.e+3] # piston position  w[1]
         self.w += [1.e+0] # control w[2]
         # jump phase 
-        self.w += [1.e+3] # mass height  w[3]
+        self.w += [1.e+4] # mass height  w[3]
         self.w += [1.e+1] # piston position w[4] 
         self.w += [1.e+3] # mass velocity  w[5]
         self.w += [1.e+0] # control weight w[6]
         # terminal 
         self.w += [1.e+4] # mass position w[7]
         self.w += [1.e+4] # piston position w[8]
-        self.w += [1.e+3] # mass and piston velocties w[9] 
+        self.w += [1.e+4] # mass and piston velocties w[9] 
+        # extra term to phase 1 
+
+        self.w += [0.] # w[10]
+        
         
 
     def _running_cost(self, t, x, u): 
         if t<= self.t1 or t > self.t2:
-            cost = self.scale*self.w[0]*(x[0]-self.dynamics.d0)**2 + self.scale*self.w[1]*x[1]**2
-            cost += self.scale*self.w[2]*u[0]**2   
+            cost = self.scale*self.w[0]*(x[0]-self.dynamics.d0)**2 + self.scale*self.w[1]*(x[1]-self.dynamics.alpha)**2
+            cost += self.scale*self.w[2]*u[0]**2 + self.scale*self.w[10]*x[2]**2  
         else:
             cost = .5*self.w[3]*(x[0]-self.z_des)**2 + self.w[4]*x[1]**2 
             cost +=  self.w[5]*x[2]**2 + self.w[6]*u[0]**2
@@ -144,10 +148,12 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
             if t<= self.t1 or t > self.t2:
                 Lx[0] = 2.*self.scale * self.w[0]*(x[0]-self.dynamics.d0)
                 Lxx[0,0] = 2.*self.scale * self.w[0]
-                Lx[1] = 2.* self.scale*self.w[1]*x[1]
+                Lx[1] = 2.* self.scale*self.w[1]*(x[1]-self.dynamics.alpha)
                 Lxx[1,1] = 2.* self.scale*self.w[1] 
                 Lu[0] = 2*self.scale*self.w[2]*u[0]
                 Luu[0,0] = 2*self.scale*self.w[2]
+                Lx[2] = 2.*self.scale*self.w[10]*x[2]
+                Lxx[2,2] = 2.*self.scale*self.w[10]
             else:
                 Lu[0] = 2.*self.w[6]*u[0]
                 Luu[0,0] = 2.*self.w[6]

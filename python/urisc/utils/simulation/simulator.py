@@ -47,7 +47,7 @@ class HopperSimulator(AbstractSimulator):
         # few simulation parameters 
         self.k = 1.e+5 
         self.b = 300.  
-        self.env = 0. 
+        self.env = 0.
         self.x0[0] += self.env
         self.controller_dt = self.controller.dt  
         self.n_steps = int(self.controller_dt/self.dt)
@@ -93,7 +93,7 @@ class HopperSimulator(AbstractSimulator):
             for i in range(self.n_steps):
                 ui = self.controller(t, i/self.n_steps, xi)
                 xi, fi = self.step(xi, ui) 
-                  
+                self.fsim += [fi]
             self.xsim += [xi]
             self.usim += [ui]
-            self.fsim += [fi]
+            

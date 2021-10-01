@@ -51,8 +51,9 @@ if __name__ == "__main__":
     plt.plot(time_array,ground_hieght, '--k',linewidth=2.)
     plt.legend()
 
+    fine_time_array = np.arange(0., dt*horizon, 1.e-4)
     plt.figure("Contact Forces")
-    plt.plot(time_array[:-1], sim.fsim)
+    plt.plot(fine_time_array, sim.fsim)
 
 
 
