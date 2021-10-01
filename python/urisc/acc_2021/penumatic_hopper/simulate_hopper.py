@@ -39,8 +39,12 @@ if __name__ == "__main__":
 
     sim.simulate()
     
+    trajectory = np.array(sim.xsim)
+    contact_pt_height = trajectory[:,0] - trajectory[:,1] - .5*np.ones_like(time_array)
     plt.figure("trajectory plot")
-    plt.plot(time_array,np.array(sim.xsim)[:,0], label="Mass Height")
-    plt.plot(time_array,np.array(sim.xsim)[:,1], label="Piston Height")
+    plt.plot(time_array,trajectory[:,0], label="Mass Height")
+    plt.plot(time_array,contact_pt_height, label="Piston Height")
     plt.legend()
+
+
     plt.show()

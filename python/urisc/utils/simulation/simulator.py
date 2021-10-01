@@ -44,8 +44,8 @@ class HopperSimulator(AbstractSimulator):
         self.inv_m = 1./self.mass  
 
         # few simulation parameters 
-        self.k = 1.e+3 
-        self.b = 50.  
+        self.k = 1.e+5 
+        self.b = 300.  
         self.controller_dt = self.controller.dt  
         self.n_steps = int(self.controller_dt/self.dt)
         self.process_noise = process_noise 
@@ -64,17 +64,17 @@ class HopperSimulator(AbstractSimulator):
         """ computes one simulation step """
         dv = np.zeros(2)
         xnext = np.zeros(4)
-        vnet = x[2]+x[3] 
+        vnet = x[2]-x[3] 
         if vnet > 0.:
             fc = 0. 
         else:
             env = 0. # height of the environment 
-            xc = x[0] - x[1] # contact point height 
+            xc = x[0] - x[1] - self.dynamics.d0 # contact point height 
             if xc > env:
                 fc = 0. 
             else:
-                dz = env - xc 
-                fc = self.k*dz - self.b*vnet
+                err = env - xc 
+                fc = self.k*err - self.b*vnet
         
         dv[0] = self.inv_m*fc - self.g  
         dv[1] = u[0] 

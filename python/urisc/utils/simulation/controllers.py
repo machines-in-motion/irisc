@@ -40,7 +40,7 @@ class DDPController(AbstractController):
         and returns a control signal u """ 
         xdes = self.interpolate_xs(t,d)
         err = self.compute_error(t, xdes, x)
-        u = self.us[t] + self.K[t].dot(err)
+        u = self.us[t] -self.K[t].dot(err)
         return u
 
     
