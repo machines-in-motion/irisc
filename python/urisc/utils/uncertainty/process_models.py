@@ -1,5 +1,5 @@
 import numpy as np 
-
+import crocoddyl
 
 class AbstractProcessModel:
     def __init__(self, action_model):
@@ -10,6 +10,7 @@ class AbstractProcessModel:
         state_model: state model defined in crocoddyl 
         """
         self.model = action_model 
+        self.data = self.model.createData()
         self.state = self.model.state 
 
     def calc(self, x, u): 
