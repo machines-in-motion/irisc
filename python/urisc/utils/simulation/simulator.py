@@ -20,8 +20,7 @@ class AbstractSimulator:
 
 
 class HopperSimulator(AbstractSimulator):
-    def __init__(self, dynamics, controller, estimator, process_noise, 
-                measurement_noise, x0, horizon, sim_dt=1.e-4):
+    def __init__(self, dynamics, controller, estimator, problem_uncertainty, x0, horizon, sim_dt=1.e-5):
         """ 1D penumatic hopper simulator, using stiff visco-elastic contacts 
         Args: 
             model:
@@ -35,33 +34,26 @@ class HopperSimulator(AbstractSimulator):
         super().__init__(dynamics, controller, estimator, sim_dt)
         self.horion = horizon
         self.x0 = x0 
-        self.xsim = [] # true states 
-        self.usim = [] # control inputs 
-        self.fsim = [] # contact forces  
-        self.ysim = [] # observations 
-        self.xhsim = [] # estimated states 
+        
         self.g = 9.81 
         self.mass  = dynamics.mass  
         self.inv_m = 1./self.mass  
 
         # few simulation parameters 
-        self.k = 1.e+5 
-        self.b = 300.  
+        self.k = 1.e+3 
+        self.b = 100.  
         self.env = 0.
         self.x0[0] += self.env
         self.controller_dt = self.controller.dt  
         self.n_steps = int(self.controller_dt/self.dt)
-        self.process_noise = process_noise 
-        self.measurement_noise = measurement_noise
-        # 
-        if self.process_noise is not None:
-            self.pnoise_flag = True 
-        else:
-            self.pnoise_flag = False 
-        if self.measurement_noise is not None:
-            self.mnoise_flag = True 
-        else: 
-            self.mnoise_flag = False 
+        self.uncertainty = problem_uncertainty
+
+        self.xsim = [] # true states 
+        self.usim = [] # control inputs 
+        self.fsim = [] # contact forces  
+        self.ysim = [] # observations 
+        self.xhsim = [self.estimator.xhat[0]] # estimated states 
+        self.chi = [self.estimator.chi[0]]
 
     def step(self, x, u):
         """ computes one simulation step """
@@ -91,9 +83,18 @@ class HopperSimulator(AbstractSimulator):
         xi = self.x0.copy()
         for t in range(self.horizon):
             for i in range(self.n_steps):
-                ui = self.controller(t, i/self.n_steps, xi)
+                ui = self.controller(t, i/self.n_steps, self.xhsim[-1])
                 xi, fi = self.step(xi, ui) 
+                
                 self.fsim += [fi]
-            self.xsim += [xi]
             self.usim += [ui]
+            if self.estimator is not None:
+                xi = self.uncertainty.sample_process(t, xi, ui) 
+                yi = self.uncertainty.sample_measurement(t, self.xsim[-1], self.usim[-1]) 
+                self.estimator.update(t, yi, self.xhsim[-1], self.usim[-1])
+
+            self.xsim += [xi]
+    
+            self.xhsim += [self.estimator.xhat[-1]] # estimated states 
+            self.chi += [self.estimator.chi[-1]]
             
