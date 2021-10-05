@@ -10,12 +10,72 @@ class PenumaticHopper1DViz:
     def __init__(self, xs, us): 
         self.xs = xs 
         self.us = us 
+        self.hip_size = .2 
+        self.cylinder_length = .25 
+        self.cylinder_diameter = .075 
+        self.piston_offset = .5 # must match dynamics.d0
+        self.piston_length = .25 
+        self.piston_width = self.cylinder_diameter
+        self.foot_length = self.hip_size - .05
 
+    def plot_hip(self, x, y, ax):
+        """ x,y in the args here are com coordinates """
+        xy = (x - .5*self.hip_size, y - .5*self.hip_size)
+        ax.add_patch(m_patches.Rectangle(
+        xy, self.hip_size, self.hip_size,
+        fill=True,
+        linewidth=2.,
+        edgecolor='k', 
+        facecolor='c',
+        alpha=1., ))
 
+    def plot_cylinder(self, x, y, ax): 
+        """ x,y in the args here are com coordinates """
+        xy = (x - .5*self.cylinder_diameter, y - .5*self.hip_size - self.cylinder_length)
+        ax.add_patch(m_patches.Rectangle(
+        xy, self.cylinder_diameter, self.cylinder_length,
+        fill=False,
+        linewidth=2.,
+        edgecolor='k',
+        alpha=1.,))
 
-    def plot_hip(self):
+    def plot_piston(self, x1, y1, y2, ax):
+        """ y1 and y2 are com and pison heights respectively i.e. states from dynamics """
+        y_foot = y1 - y2 - self.piston_offset
+        # draw foot 
+        xy = (x1 - .5*self.foot_length, y_foot)
+        ax.add_patch(m_patches.Rectangle(
+        xy, self.foot_length, .025,
+        fill=True,
+        color='k',))
+        # draw shank
+        xshank = [x1, x1]
+        yshank = [y_foot+ 5.e-3, y_foot+ self.piston_length]
+        ax.add_line(m_lines.Line2D(xshank, yshank, lw=4.5, color='k'))
+        # draw piston cap 
+        xp = x1 - .5 * self.piston_width 
+        yp = y_foot+ self.piston_length
+        xy = (xp, yp)
+        ax.add_patch(m_patches.Rectangle(
+        xy, self.cylinder_diameter, .02,
+        fill=True,
+        color='k',
+        alpha=1.,))
+
+    def plot_gas_fill(self, x1, y1, y2, ax): 
+        yg = y1 - y2 - self.piston_offset + self.piston_length
+        xg = x1 - .5*self.cylinder_diameter
+        gas_length = y1 - .5*self.hip_size - yg 
+        gas_width = self.cylinder_diameter 
+        ax.add_patch(m_patches.Rectangle(
+        (xg,yg), gas_width, gas_length,
+        fill=True,
+        color='g',
+        alpha=.2, ))
+
+    def plot_along_horizon(self, pts):
+        """ pts is a list of time indices to take from xs """
         pass 
-
 
     def update_visual(self): 
         pass 
