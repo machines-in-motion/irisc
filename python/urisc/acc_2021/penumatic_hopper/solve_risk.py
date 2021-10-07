@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
 
     irisc_uncertainty = problem_uncertainty.ProblemUncertainty(x0, initial_covariance, uncertainty_models)
-    solver = furisc.RiskSensitiveSolver(problem, irisc_uncertainty, sensitivity)
+    solver = furisc.FeasibilityRiskSensitiveSolver(problem, irisc_uncertainty, sensitivity)
 
     solver.setCallbacks([
     crocoddyl.CallbackLogger(),

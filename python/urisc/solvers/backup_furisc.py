@@ -21,8 +21,8 @@ def raiseIfNan(A, error=None):
 
 
 
-class FeasibilityRiskSensitiveSolver(SolverAbstract):
-    def __init__(self, shootingProblem, problemUncertainty, sensitivity):
+class RiskSensitiveSolver(SolverAbstract):
+    def __init__(self, shootingProblem, problemUncertainty, sensitivity, withMeasurement=False):
         SolverAbstract.__init__(self, shootingProblem)
         self.sigma = sensitivity
         self.uncertainty = problemUncertainty 
@@ -40,6 +40,9 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         self.gap_tolerance = 1.e-6
         self.cost_try = 0.
         # 
+        self.withMeasurement = withMeasurement 
+        self.withGaps = False 
+
         self.rv_dim = 0 
         self.a = 1.#e-3 # alpha for the unscented transform 
         # 
@@ -94,7 +97,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         
     def stoppingCriteria(self):
         """ it will be feedforward norm along the trajectory for now """
-        knormSquared = [ki.dot(ki) for ki in self.k]
+        knormSquared = [ki.dot(ki) for ki in self.kff]
         knorm = np.sqrt(np.array(knormSquared))
         return knorm
         
@@ -114,6 +117,10 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
                 try:
                     # print("Accessing try") 
                     self.computeDirection(recalc=recalc)
+                    if i == 0:
+                        # print("logging initial gains")
+                        self.kff_init = [ki for ki in self.kff]
+                        self.Kfb_init = [ki for ki in self.Kfb]
                 except:
                     print("compute direcrtion failed")
                     pass 
@@ -177,31 +184,25 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
                                                         self.problem.runningDatas,
                                                         self.uncertainty.runningModels,  
                                                         self.uncertainty.runningDatas)):
-            inv_V = np.linalg.inv(self.V[t+1])
-            if VERBOSE: print("inv V[%s]"%t)
-            self.M[t] = np.linalg.inv(self.sigma * udata.Omega + inv_V)
-            if VERBOSE: print("M[%s]"%t)
-            N_t = self.v[t+1] - self.sigma * self.M[t].dot(udata.Omega).dot(self.v[t+1])
-            if VERBOSE: print("N[%s]"%t)
+            inv_Wt = udata.invOmega - self.sigma * self.V[t+1]
+            Wt = np.linalg.inv(inv_Wt)
+            Mt = np.eye(model.state.ndx) + self.sigma*self.V[t+1].dot(Wt)
+            Qx = data.Lx + data.Fx.T.dot(Mt).dot(self.v[t+1]) 
+            Qx -= data.Fx.T.dot(Mt).dot(self.V[t+1]).dot(self.fs[t+1])
+            Qu = data.Lu + data.Fu.T.dot(Mt).dot(self.v[t+1]) 
+            Qu -=  data.Fu.T.dot(Mt).dot(self.V[t+1]).dot(self.fs[t+1])
+            Qux = data.Lxu.T + data.Fu.T.dot(Mt).dot(self.V[t+1]).dot(data.Fx)
+            Qxx = data.Lxx + data.Fx.T.dot(Mt).dot(self.V[t+1]).dot(data.Fx)
+            Quu = data.Luu + data.Fu.T.dot(Mt).dot(self.V[t+1]).dot(data.Fu)
+            # 
+            Lb = scl.cho_factor(Quu, lower=True) 
+            self.kff[t][:] = -scl.cho_solve(Lb, Qu)
+            self.Kfb[t][:, :] = -scl.cho_solve(Lb, Qux)
             #
-            Qx = data.Lx + data.Fx.T.dot(self.M[t]).dot(self.fs[t+1]) + data.Fx.T.dot(N_t) 
-            Qu = data.Lu + data.Fu.T.dot(self.M[t]).dot(self.fs[t+1]) + data.Fu.T.dot(N_t) 
-            Quu = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu) 
-            Qux = data.Lxu.T + data.Fu.T.dot(self.M[t]).dot(data.Fx) 
-            Qxx = data.Lxx + data.Fx.T.dot(self.M[t]).dot(data.Fx) 
-            # compute the optimal control 
-            Lb = scl.cho_factor(Quu, lower=True)
-            self.k[t][:] = scl.cho_solve(Lb, Qu)
-            if VERBOSE: print("kff[%s]"%t)
-            self.K[t][:, :] = scl.cho_solve(Lb, Qux)
-            if VERBOSE: print("Kfb[%s]"%t)
+            self.v[t][:] = Qx + self.Kfb[t].T.dot(Quu).dot(self.kff[t]) + self.Kfb[t].T.dot(Qu) + Qux.T.dot(self.kff[t]) 
+            self.V[t][:,:] = Qxx + self.Kfb[t].T.dot(Quu).dot(self.Kfb[t]) + self.Kfb[t].T.dot(Qux) + Qux.T.dot(self.Kfb[t]) 
+            self.V[t][:,:] = .5*(self.V[t].T + self.V[t])
 
-            # hessian 
-            self.V[t][:,:] = Qxx + self.K[t].T.dot(Quu).dot(self.K[t]) - self.K[t].T.dot(Qux) - Qux.T.dot(self.K[t])
-            self.V[t][:,:] = .5 *(self.V[t] + self.V[t].T) # ensure symmetry 
-            if VERBOSE: print("V[%s]"%t)
-            self.v[t][:] = Qx + self.K[t].T.dot(Quu).dot(self.k[t]) - self.K[t].T.dot(Qu) - Qux.T.dot(self.k[t])
-            if VERBOSE: print("v[%s]"%t)  
 
 
     def forwardPass(self, stepLength, warning='error'):
@@ -245,8 +246,80 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             self.x_reg = self.regMin
         self.u_reg = self.x_reg
 
+    def pastStressEstimate(self, t, xcheck, u, y, x_hat, P): 
+        p_model = self.problem.runningModels[t]
+        m_model = self.uncertainty.runningModels[t]
+        p_data = self.problem.runningDatas[t]
+        m_data = self.uncertainty.runningDatas[t]
+        p_model.calc(p_data, x_hat, u)
+        p_model.calcDiff(p_data, x_hat, u)
+        # compute deviations 
+        del_xhat = p_model.state.diff(self.xs[t], x_hat)
+        del_y = m_model.measurement_deviation(y, self.xs[t]) 
+        du = u - self.us[t]
+        # compuate estimation gain 
+        inv_skewed_covariance = np.linalg.inv(P) + m_data.H.T.dot(m_data.invGamma).dot(m_data.H) + self.sigma*p_data.Lxx
+        Lb = scl.cho_factor(inv_skewed_covariance , lower=True)
+        # compute filter gain 
+        rightG = m_data.H.T.dot(m_data.invGamma)
+        gain = scl.cho_solve(Lb, rightG)
+        self.G[t][:,:] = p_data.Fx.dot(gain)
+        # update deviation estimate 
+        right_dxhat = p_data.Lxx.dot(del_xhat) - p_data.Lxu.dot(du) - p_data.Lx 
+        dx_hat =  scl.cho_solve(Lb, right_dxhat)
+        estimate_dx =- self.sigma*p_data.Fx.dot(dx_hat)
+        estimate_dx += p_data.Fx.dot(del_xhat) + p_data.Fu.dot(du)  
+        estimate_dx += self.G[t].dot(del_y - m_data.H.dot(del_xhat)) 
+        # update deviation covariance 
+        right_P = p_data.Fx.T 
+        Pt = scl.cho_solve(Lb, right_P)
+        P_next = m_data.Omega + p_data.Fx.dot(Pt)
+        # update estimates 
+        x_next = p_model.state.integrate(self.xs[t+1], estimate_dx)
+        return x_next, P_next
 
+    def controllerStep(self, t, x_hat, P, interpolation=0.): 
+        """ runs a single control update step which includes 
+        1. compute past stress estimate \hat{x}_t , P_t, G_t 
+        2. compute minimal stress estimate \check{x}_t 
+        3. compute deviation of minimal stress estimate from nominal trajectory x^n_t 
+        4. update feedforward and feedback accordingly 
+        Args: 
+            x: disturbed x coming back from simulator 
+            t: time index along planned horizon
+        """
+        p_model = self.problem.runningModels[t-1]
+        m_model = self.uncertainty.runningModels[t-1]
+        p_data = self.problem.runningDatas[t-1]
+        m_data = self.uncertainty.runningDatas[t-1]
+        # compute deviations 
+        del_xhat = p_model.state.diff(self.xs[t], x_hat)
 
+        # compute x_check 
+        left_dx_ch =  np.eye(p_model.state.ndx) + self.sigma*P.dot(self.V[t])  
+        Lb_dx_ch = scl.cho_factor(left_dx_ch , lower=True) 
+        right_dx_ch = del_xhat - self.sigma * P.dot(self.v[t])
+        del_xcheck = scl.cho_solve(Lb_dx_ch, right_dx_ch)
+        #
+        xcheck = p_model.state.integrate(self.xs[t], del_xcheck)
+        #
+        right_kff = P.dot(self.v[t])
+        kff = scl.cho_solve(Lb_dx_ch, right_kff)
+        self.k[t-1] = self.us[t-1] + self.sigma*self.Kfb[t-1].dot(kff)
+        #
+        right_Kfb = self.Kfb[t-1].T 
+        tran_left_dx_ch = left_dx_ch.T 
+        Lb_tran_dx_ch = scl.cho_factor(tran_left_dx_ch, lower=True)
+        Kfb = scl.cho_solve(Lb_tran_dx_ch, right_Kfb) 
+        #
+        self.K[t-1] = Kfb.T  
+        ui = self.k[t-1] - self.K[t-1].dot(del_xhat)
+        return xcheck, ui 
+
+    def perfectObservationControl(self, t, x): 
+        err = self.problem.runningModels[t].state.diff(self.xs[t], x)
+        control = self.us[t] - self.Kfb[t].dot(err)
+        return control 
 
     def allocateData(self):
         """  Allocate memory for all variables needed, control, state, value function and estimator.
@@ -345,8 +418,8 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
                 tf = sum(self.ndxs[:t+1])
                 if i != 0:
                     xs_try[t] = m.state.integrate(xs_try[t], self.samples[ti:tf, i])
-                us_try[t] = self.us[t] - stepLength*self.k[t] - \
-                    self.K[t].dot(m.state.diff(self.xs[t], xs_try[t]))
+                us_try[t] = self.us[t] + stepLength*self.kff[t] + \
+                    self.Kfb[t].dot(m.state.diff(self.xs[t], xs_try[t]))
                 
                 with np.warnings.catch_warnings():
                     np.warnings.simplefilter(warning)
