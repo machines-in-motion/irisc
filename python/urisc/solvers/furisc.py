@@ -37,11 +37,12 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         self.th_step = .5
         self.th_stop =  1.e-9 
         self.n_little_improvement = 0 
+        self.n_min_alpha = 0
         self.gap_tolerance = 1.e-6
         self.cost_try = 0.
         # 
         self.rv_dim = 0 
-        self.a = 1.#e-3 # alpha for the unscented transform 
+        self.a = 1.e-3 # alpha for the unscented transform 
         # 
         self.allocateData()
         # 
@@ -144,6 +145,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             if a > self.th_step: # decrease regularization if alpha > .5 
                 self.decreaseRegularization()
             if a == self.alphas[-1] :  
+                self.n_min_alpha += 1
                 self.increaseRegularization()
                 if self.x_reg == self.regMax:
                     print(" Maximum Regularixation Reached with no Convergence ".center(LINE_WIDTH,'='))
@@ -162,6 +164,10 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             if self.n_little_improvement == 5:
                 print('Solver converged with little improvement in the last 5 iterations')
                 return True # self.xs, self.us, True
+
+            if self.n_min_alpha == 5:
+                print("Line search is not making any improvements")
+                return False 
 
         print("Now we are completely out of the for loop")
 
@@ -186,7 +192,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             #
             Qx = data.Lx + data.Fx.T.dot(self.M[t]).dot(self.fs[t+1]) + data.Fx.T.dot(N_t) 
             Qu = data.Lu + data.Fu.T.dot(self.M[t]).dot(self.fs[t+1]) + data.Fu.T.dot(N_t) 
-            Quu = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu) 
+            Quu = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu) #+ self.u_reg*np.eye(model.nu)
             Qux = data.Lxu.T + data.Fu.T.dot(self.M[t]).dot(data.Fx) 
             Qxx = data.Lxx + data.Fx.T.dot(self.M[t]).dot(data.Fx) 
             # compute the optimal control 

@@ -12,34 +12,36 @@ sys.path.append(src_path)
 from utils.action_models import penumatic_hopper 
 from solvers import furisc
 from utils.uncertainty import measurement_models, process_models, problem_uncertainty
-
+from utils.problems import penumatic_hopper_problem 
 from hopper_config import *
 
 if __name__ == "__main__":
     print(" Running uRiSC for Penumatic Hopper ".center(LINE_WIDTH, '#'))
-    # 
-    running_models = []
-    for t in range(horizon): 
-        diff_hopper = penumatic_hopper.DifferentialActionModelHopper(t, horizon, False) 
-        running_models += [crocoddyl.IntegratedActionModelEuler(diff_hopper, dt)] 
-    diff_hopper = penumatic_hopper.DifferentialActionModelHopper(horizon, horizon, True) 
-    terminal_model = crocoddyl.IntegratedActionModelEuler(diff_hopper, dt) 
-    problem = crocoddyl.ShootingProblem(x0, running_models, terminal_model)
-
     # uncertainty models 
     initial_covariance = 1.e-3 * np.eye(4)
-    process_noise = 1.e-7*np.eye(4)
+    process_noise = 1.e-5*np.eye(4)
     measurement_noise = 1.e-5*np.eye(4)
-    sensitivity = -.1
-    uncertainty_models = []
-    for i, m in enumerate(running_models+[terminal_model]):
-        # loop only over running models 
-        p_model = process_models.FullStateProcess(m, process_noise) 
-        m_model = measurement_models.FullStateMeasurement(m, measurement_noise)
-        uncertainty_models += [problem_uncertainty.UncertaintyModel(p_model, m_model)]
+    sensitivity = .1
+
+    pmodels, umodels = penumatic_hopper_problem.full_state_uniform_hopper(dt, horizon, process_noise, measurement_noise)
+    # running_models = []
+    # for t in range(horizon): 
+    #     diff_hopper = penumatic_hopper.DifferentialActionModelHopper(t, horizon, False) 
+    #     running_models += [crocoddyl.IntegratedActionModelEuler(diff_hopper, dt)] 
+    # diff_hopper = penumatic_hopper.DifferentialActionModelHopper(horizon, horizon, True) 
+    # terminal_model = crocoddyl.IntegratedActionModelEuler(diff_hopper, dt) 
+    problem = crocoddyl.ShootingProblem(x0, pmodels[:-1], pmodels[-1])
+
+    
+    # uncertainty_models = []
+    # for i, m in enumerate(running_models):
+    #     # loop only over running models 
+    #     p_model = process_models.FullStateProcess(m, process_noise) 
+    #     m_model = measurement_models.FullStateMeasurement(m, measurement_noise)
+    #     uncertainty_models += [problem_uncertainty.UncertaintyModel(p_model, m_model)]
 
 
-    irisc_uncertainty = problem_uncertainty.ProblemUncertainty(x0, initial_covariance, uncertainty_models)
+    irisc_uncertainty = problem_uncertainty.ProblemUncertainty(x0, initial_covariance, umodels)
     solver = furisc.FeasibilityRiskSensitiveSolver(problem, irisc_uncertainty, sensitivity)
 
     solver.setCallbacks([
