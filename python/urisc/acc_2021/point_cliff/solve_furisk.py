@@ -24,7 +24,7 @@ if __name__ == "__main__":
     process_noise = 1.e-3*np.eye(4)
     # process_noise[1,1] = 1.e-2 
     measurement_noise = 1.e-3*np.eye(4)
-    sensitivity =  .2
+    sensitivity =  -.2
     p_models, u_models = point_cliff_problem.full_state_uniform_cliff_problem(dt, horizon, process_noise, measurement_noise)
 
     ddp_problem = crocoddyl.ShootingProblem(x0, p_models[:-1], p_models[-1])

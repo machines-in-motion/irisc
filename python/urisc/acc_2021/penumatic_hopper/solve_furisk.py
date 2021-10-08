@@ -21,7 +21,7 @@ if __name__ == "__main__":
     initial_covariance = 1.e-3 * np.eye(4)
     process_noise = 1.e-5*np.eye(4)
     measurement_noise = 1.e-5*np.eye(4)
-    sensitivity = .1
+    sensitivity = -.1
 
     pmodels, umodels = penumatic_hopper_problem.full_state_uniform_hopper(dt, horizon, process_noise, measurement_noise)
     # running_models = []

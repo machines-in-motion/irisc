@@ -1,4 +1,5 @@
 import numpy as np
+from numpy import linalg
 from numpy.core.fromnumeric import transpose 
 import scipy.linalg as scl
 
@@ -25,6 +26,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
     def __init__(self, shootingProblem, problemUncertainty, sensitivity):
         SolverAbstract.__init__(self, shootingProblem)
         self.sigma = sensitivity
+        self.inv_sigma = 1./self.sigma
         self.uncertainty = problemUncertainty 
         # 
         self.wasFeasible = False # Change it to true if you know that datas[t].xnext = xs[t+1]
@@ -38,7 +40,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         self.th_stop =  1.e-9 
         self.n_little_improvement = 0 
         self.n_min_alpha = 0
-        self.gap_tolerance = 1.e-6
+        self.gap_tolerance = 1.e-9
         self.cost_try = 0.
         # 
         self.rv_dim = 0 
@@ -60,22 +62,22 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         self.uncertainty.calc(self.xs, self.us) # compute H, Omega, Gamma 
         # print("went into calc")
 
-        if not self.isFeasible:
-            # Gap store the state defect from the guess to feasible (rollout) trajectory, i.e.
-            #   gap = x_rollout [-] x_guess = DIFF(x_guess, x_rollout)
-            # print("not feasible")
-            self.fs[0] = self.problem.runningModels[0].state.diff(self.xs[0], self.problem.x0)
-            # print("initial gap")
-            ng = np.linalg.norm(self.fs[0])
-            # print("initial gap norm")
-            for t, (m, d, x) in enumerate(zip(self.problem.runningModels, self.problem.runningDatas, self.xs[1:])):
-                self.fs[t + 1] = m.state.diff(x, d.xnext)
-                ng += np.linalg.norm(self.fs[t+1])
-            
-            if ng<1.e-9:
-                self.isFeasible = True
-            else:
-                self.isFeasible = False 
+        # if not self.isFeasible:
+        # Gap store the state defect from the guess to feasible (rollout) trajectory, i.e.
+        #   gap = x_rollout [-] x_guess = DIFF(x_guess, x_rollout)
+        # print("not feasible")
+        self.fs[0] = self.problem.runningModels[0].state.diff(self.xs[0], self.problem.x0)
+        # print("initial gap")
+        ng = np.linalg.norm(self.fs[0])
+        # print("initial gap norm")
+        for t, (m, d, x) in enumerate(zip(self.problem.runningModels, self.problem.runningDatas, self.xs[1:])):
+            self.fs[t + 1] = m.state.diff(x, d.xnext)
+            ng += np.linalg.norm(self.fs[t+1])
+        
+        if ng<self.gap_tolerance:
+            self.isFeasible = True
+        else:
+            self.isFeasible = False 
 
         # print("calc passed")
 
@@ -91,6 +93,9 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         return self.cost - self.cost_try 
 
     def expectedImprovement(self):
+        # dL = -self.inv_sigma*np.log(np.exp(-self.sigma*self.dv[0]))
+        dL = self.dv[0]
+        # print("Expected improvement is %s"%dL)
         return np.array([0.]), np.array([0.])
         
     def stoppingCriteria(self):
@@ -113,19 +118,19 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             recalc = True   # this will recalculated derivatives in Compute Direction 
             while True:     # backward pass with regularization 
                 try:
-                    # print("Accessing try") 
+                    # print("iteration number %s"%i) 
                     self.computeDirection(recalc=recalc)
+                    # _,_ = self.expectedImprovement()
                 except:
-                    print("compute direcrtion failed")
-                    pass 
-                    # recalc = True 
-                    # self.increaseRegularization()
-                    # print("increasing regularization at iterations %s"%i)
-                    # if self.x_reg == self.regMax: # if max reg reached, faild to converge, end solve attempt  
-                    #     print("Backward Pass Maximum Regularization Reached for alpha = %s"%a) 
-                    #     return False #self.xs, self.us, False
-                    # else:  # continue to next while  
-                    #     continue
+                    print("compute direcrtion failed") 
+                    recalc = True 
+                    self.increaseRegularization()
+                    print("increasing regularization at iterations %s"%i)
+                    if self.x_reg == self.regMax: # if max reg reached, faild to converge, end solve attempt  
+                        print("Backward Pass Maximum Regularization Reached for alpha = %s"%a) 
+                        return False #self.xs, self.us, False
+                    else:  # continue to next while  
+                        continue
                 break # compute direction succeeded, exit and proceed to line search 
             
             for a in self.alphas:
@@ -183,16 +188,18 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
                                                         self.problem.runningDatas,
                                                         self.uncertainty.runningModels,  
                                                         self.uncertainty.runningDatas)):
-            inv_V = np.linalg.inv(self.V[t+1])
+            inv_V = np.linalg.inv(self.V[t+1]) + self.x_reg*np.eye(model.state.ndx)
             if VERBOSE: print("inv V[%s]"%t)
             self.M[t] = np.linalg.inv(self.sigma * udata.Omega + inv_V)
+            # self.M[t] = .5*(self.M[t]  + self.M[t].T) # a bit more stability 
             if VERBOSE: print("M[%s]"%t)
             N_t = self.v[t+1] - self.sigma * self.M[t].dot(udata.Omega).dot(self.v[t+1])
             if VERBOSE: print("N[%s]"%t)
             #
             Qx = data.Lx + data.Fx.T.dot(self.M[t]).dot(self.fs[t+1]) + data.Fx.T.dot(N_t) 
             Qu = data.Lu + data.Fu.T.dot(self.M[t]).dot(self.fs[t+1]) + data.Fu.T.dot(N_t) 
-            Quu = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu) #+ self.u_reg*np.eye(model.nu)
+            Quu = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu) + self.u_reg*np.eye(model.nu)
+            # Quu = .5*(Quu + Quu.T) # a bit more stability 
             Qux = data.Lxu.T + data.Fu.T.dot(self.M[t]).dot(data.Fx) 
             Qxx = data.Lxx + data.Fx.T.dot(self.M[t]).dot(data.Fx) 
             # compute the optimal control 
@@ -206,8 +213,15 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             self.V[t][:,:] = Qxx + self.K[t].T.dot(Quu).dot(self.K[t]) - self.K[t].T.dot(Qux) - Qux.T.dot(self.K[t])
             self.V[t][:,:] = .5 *(self.V[t] + self.V[t].T) # ensure symmetry 
             if VERBOSE: print("V[%s]"%t)
+            # gradient 
             self.v[t][:] = Qx + self.K[t].T.dot(Quu).dot(self.k[t]) - self.K[t].T.dot(Qu) - Qux.T.dot(self.k[t])
-            if VERBOSE: print("v[%s]"%t)  
+            if VERBOSE: print("v[%s]"%t)
+            # improvement 
+            invWt = np.linalg.inv(self.inv_sigma*udata.invOmega + self.V[t+1])
+            gt = -.5*self.v[t+1].T.dot(invWt).dot(self.v[t+1]) + self.dv[t+1]
+            qt = gt + self.fs[t+1].T.dot(self.M[t].dot(self.fs[t+1]) + N_t) #- .5*self.inv_sigma*np.log(linalg.det(2*np.pi*invWt))
+            self.dv[t] = qt - self.k[t].T.dot(Qu) + .5*self.k[t].T.dot(Quu).dot(self.k[t])
+              
 
 
     def forwardPass(self, stepLength, warning='error'):
@@ -267,6 +281,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         self.kff = [np.zeros(p.nu) for p in self.problem.runningModels]
         self.V = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
         self.v = [np.zeros(p.state.ndx) for p in self.models()]   
+        self.dv = [0. for _ in self.models()]
         
         # forward estimation 
         self.xhat = [self.uncertainty.x0] + [np.zeros(p.state.nx) for p in self.problem.runningModels]
@@ -329,11 +344,11 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         costs = []
         for i in range(self.sample_size):
             if i == 0:
-                costs += [self.w0 * np.exp(.5*self.sigma *np.sum(self.sample_costs[:,i])) ]
+                costs += [self.w0 * np.exp(-self.sigma *np.sum(self.sample_costs[:,i])) ]
             else:
-                costs += [self.wi * np.exp(.5*self.sigma *np.sum(self.sample_costs[:,i])) ]
+                costs += [self.wi * np.exp(-self.sigma *np.sum(self.sample_costs[:,i])) ]
          
-        ctry =  (2./self.sigma)*np.log(sum(costs))
+        ctry =  (-1./self.sigma)*np.log(sum(costs))
         return ctry
 
     def unscentedForwardPass(self, stepLength, warning='error'):
@@ -347,9 +362,13 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         
             for t, (m, d) in enumerate(zip(self.problem.runningModels, self.problem.runningDatas)):
                 # update control 
-                ti = sum(self.ndxs[:t])
-                tf = sum(self.ndxs[:t+1])
-                if i != 0:
+                if t == 0:
+                    ti = 0 
+                    tf = self.ndxs[0]
+                else:
+                    ti = sum(self.ndxs[:t])
+                    tf = sum(self.ndxs[:t+1])
+                if i != 0 and self.samples[ti:tf, i].dot(self.samples[ti:tf, i])>1.e-10:
                     xs_try[t] = m.state.integrate(xs_try[t], self.samples[ti:tf, i])
                 us_try[t] = self.us[t] - stepLength*self.k[t] - \
                     self.K[t].dot(m.state.diff(self.xs[t], xs_try[t]))
@@ -392,7 +411,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
                 # update control 
                 ti = sum(self.ndxs[:t])
                 tf = sum(self.ndxs[:t+1])
-                if i != 0:
+                if i != 0 and self.samples[ti:tf, i].dot(self.samples[ti:tf, i])>1.e-10:
                     xs_try[t] = m.state.integrate(xs_try[t], self.samples[ti:tf, i])
        
                 with np.warnings.catch_warnings():
