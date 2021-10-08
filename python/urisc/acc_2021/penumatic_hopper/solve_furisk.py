@@ -24,22 +24,8 @@ if __name__ == "__main__":
     sensitivity = -.1
 
     pmodels, umodels = penumatic_hopper_problem.full_state_uniform_hopper(dt, horizon, process_noise, measurement_noise)
-    # running_models = []
-    # for t in range(horizon): 
-    #     diff_hopper = penumatic_hopper.DifferentialActionModelHopper(t, horizon, False) 
-    #     running_models += [crocoddyl.IntegratedActionModelEuler(diff_hopper, dt)] 
-    # diff_hopper = penumatic_hopper.DifferentialActionModelHopper(horizon, horizon, True) 
-    # terminal_model = crocoddyl.IntegratedActionModelEuler(diff_hopper, dt) 
+
     problem = crocoddyl.ShootingProblem(x0, pmodels[:-1], pmodels[-1])
-
-    
-    # uncertainty_models = []
-    # for i, m in enumerate(running_models):
-    #     # loop only over running models 
-    #     p_model = process_models.FullStateProcess(m, process_noise) 
-    #     m_model = measurement_models.FullStateMeasurement(m, measurement_noise)
-    #     uncertainty_models += [problem_uncertainty.UncertaintyModel(p_model, m_model)]
-
 
     irisc_uncertainty = problem_uncertainty.ProblemUncertainty(x0, initial_covariance, umodels)
     solver = furisc.FeasibilityRiskSensitiveSolver(problem, irisc_uncertainty, sensitivity)
@@ -51,10 +37,10 @@ if __name__ == "__main__":
 
     xs_ddp = np.load("solutions/ddp_xs.npy")
     us_ddp = np.load("solutions/ddp_us.npy")
-    xs = [xs_ddp[i].copy() for i in range(horizon+1)]
-    us = [us_ddp[i].copy() for i in range(horizon)]    
+    xs = [x0 for i in range(horizon+1)]
+    us = [np.zeros(1) for i in range(horizon)]    
     # 
-    converged = solver.solve(xs,us, MAX_ITER, True)
+    converged = solver.solve(xs,us, 1, True)
     if not converged:
         print(" uRiSC Solver Did Not Converge ".center(LINE_WIDTH, '!'))
     else:

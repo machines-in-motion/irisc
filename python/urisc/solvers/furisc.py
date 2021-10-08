@@ -127,7 +127,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
                     self.increaseRegularization()
                     print("increasing regularization at iterations %s"%i)
                     if self.x_reg == self.regMax: # if max reg reached, faild to converge, end solve attempt  
-                        print("Backward Pass Maximum Regularization Reached for alpha = %s"%a) 
+                        print("Backward Pass Maximum Regularization Reached at iteration %s"%i) 
                         return False #self.xs, self.us, False
                     else:  # continue to next while  
                         continue
@@ -201,11 +201,17 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             Quu = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu) + self.u_reg*np.eye(model.nu)
             # Quu = .5*(Quu + Quu.T) # a bit more stability 
             Qux = data.Lxu.T + data.Fu.T.dot(self.M[t]).dot(data.Fx) 
+            if len(Qux.shape) == 1:
+                Qux = np.resize(Qux,(1,Qux.shape[0]))
             Qxx = data.Lxx + data.Fx.T.dot(self.M[t]).dot(data.Fx) 
             # compute the optimal control 
             Lb = scl.cho_factor(Quu, lower=True)
             self.k[t][:] = scl.cho_solve(Lb, Qu)
             if VERBOSE: print("kff[%s]"%t)
+            if VERBOSE:
+                print("Qu is given by \n", Qu)
+                print("Quu is given by \n", Quu)
+                print("Qux is given by \n", Qux)
             self.K[t][:, :] = scl.cho_solve(Lb, Qux)
             if VERBOSE: print("Kfb[%s]"%t)
 
@@ -217,10 +223,10 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             self.v[t][:] = Qx + self.K[t].T.dot(Quu).dot(self.k[t]) - self.K[t].T.dot(Qu) - Qux.T.dot(self.k[t])
             if VERBOSE: print("v[%s]"%t)
             # improvement 
-            invWt = np.linalg.inv(self.inv_sigma*udata.invOmega + self.V[t+1])
-            gt = -.5*self.v[t+1].T.dot(invWt).dot(self.v[t+1]) + self.dv[t+1]
-            qt = gt + self.fs[t+1].T.dot(self.M[t].dot(self.fs[t+1]) + N_t) #- .5*self.inv_sigma*np.log(linalg.det(2*np.pi*invWt))
-            self.dv[t] = qt - self.k[t].T.dot(Qu) + .5*self.k[t].T.dot(Quu).dot(self.k[t])
+            # invWt = np.linalg.inv(self.inv_sigma*udata.invOmega + self.V[t+1])
+            # gt = -.5*self.v[t+1].T.dot(invWt).dot(self.v[t+1]) + self.dv[t+1]
+            # qt = gt + self.fs[t+1].T.dot(self.M[t].dot(self.fs[t+1]) + N_t) #- .5*self.inv_sigma*np.log(linalg.det(2*np.pi*invWt))
+            # self.dv[t] = qt - self.k[t].T.dot(Qu) + .5*self.k[t].T.dot(Quu).dot(self.k[t])
               
 
 
