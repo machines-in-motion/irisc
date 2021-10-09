@@ -56,9 +56,11 @@ if __name__ == "__main__":
         print(" Plotting FDDP Solution ".center(LINE_WIDTH, '-'))
         time_array = dt*np.arange(horizon+1)
         #
+        foot_planned = np.array(solver.xs)[:,0] - np.array(solver.xs)[:,1] - .5*np.ones_like(time_array)
         plt.figure("trajectory plot")
         plt.plot(time_array,np.array(solver.xs)[:,0], label="Mass Height")
-        plt.plot(time_array,np.array(solver.xs)[:,1], label="Piston Height")
+        plt.plot(time_array,foot_planned, label="Foot Height")
+        # plt.plot(time_array,np.array(solver.xs)[:,1], label="Piston Height")
         #
         plt.figure("control inputs")
         plt.plot(time_array[:-1],np.array(solver.us)[:,0], label="control inputs")

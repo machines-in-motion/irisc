@@ -9,7 +9,7 @@ SAVE_SOLN = True
 
 x0 = np.array([0.5, 0., 0., 0.])
 MAX_ITER = 1000
-horizon = 300 
+horizon = 200 
 dt = 1.e-2
 time_array = dt*np.arange(horizon+1)
 

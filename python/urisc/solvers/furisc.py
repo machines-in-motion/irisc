@@ -44,7 +44,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         self.cost_try = 0.
         # 
         self.rv_dim = 0 
-        self.a = 1.e-3 # alpha for the unscented transform 
+        self.a = 1.e-2 # alpha for the unscented transform 
         # 
         self.allocateData()
         # 
@@ -87,6 +87,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             self.calc()
         if VERBOSE: print("Going into Backward Pass from compute direction")
         self.backwardPass() 
+        # print("Backward Pass is Done")
         
     def tryStep(self, stepLength):
         self.unscentedForwardPass(stepLength)
@@ -149,6 +150,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         
             if a > self.th_step: # decrease regularization if alpha > .5 
                 self.decreaseRegularization()
+                self.n_min_alpha = 0
             if a == self.alphas[-1] :  
                 self.n_min_alpha += 1
                 self.increaseRegularization()
@@ -174,7 +176,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
                 print("Line search is not making any improvements")
                 return False 
 
-        print("Now we are completely out of the for loop")
+        # print("Now we are completely out of the for loop")
 
         # Warning: no convergence in max iterations
         print('max iterations with no convergance')
@@ -271,16 +273,12 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             self.x_reg = self.regMin
         self.u_reg = self.x_reg
 
-
-
-
     def allocateData(self):
         """  Allocate memory for all variables needed, control, state, value function and estimator.
         """
         # state and control 
         self.xs_try = [self.problem.x0] + [np.nan] * self.problem.T
         self.us_try = [np.nan] * self.problem.T
-
         # backward pass variables 
         self.M = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
         self.Kfb = [np.zeros([p.nu, p.state.ndx]) for p in self.problem.runningModels] 
@@ -288,7 +286,6 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         self.V = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
         self.v = [np.zeros(p.state.ndx) for p in self.models()]   
         self.dv = [0. for _ in self.models()]
-        
         # forward estimation 
         self.xhat = [self.uncertainty.x0] + [np.zeros(p.state.nx) for p in self.problem.runningModels]
         self.G = [np.zeros([p.state.ndx, m.ny]) for p,m in zip(self.problem.runningModels, self.uncertainty.runningModels)]  
@@ -353,8 +350,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
                 costs += [self.w0 * np.exp(-self.sigma *np.sum(self.sample_costs[:,i])) ]
             else:
                 costs += [self.wi * np.exp(-self.sigma *np.sum(self.sample_costs[:,i])) ]
-         
-        ctry =  (-1./self.sigma)*np.log(sum(costs))
+        ctry =  - self.inv_sigma*np.log(sum(costs))
         return ctry
 
     def unscentedForwardPass(self, stepLength, warning='error'):
@@ -378,21 +374,20 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
                     xs_try[t] = m.state.integrate(xs_try[t], self.samples[ti:tf, i])
                 us_try[t] = self.us[t] - stepLength*self.k[t] - \
                     self.K[t].dot(m.state.diff(self.xs[t], xs_try[t]))
-                
+
                 with np.warnings.catch_warnings():
                     np.warnings.simplefilter(warning)
                     m.calc(d, xs_try[t], us_try[t])
+
                 # update state 
-                xs_try[t + 1] = m.state.integrate(d.xnext.copy(), (stepLength-1)*self.fs[t+1])  # not sure copy helpful here.
+                xs_try[t + 1] = m.state.integrate(d.xnext.copy(), (stepLength-1)*self.fs[t+1])  
                 self.sample_costs[t, i] = d.cost
-                
                 raiseIfNan([self.sample_costs[t, i], d.cost], BaseException('forward error'))
                 raiseIfNan(xs_try[t + 1], BaseException('forward error'))
                 # store undisturbed trajectory 
                 if i == 0:
                     self.xs_try[t+1] = xs_try[t+1].copy()
                     self.us_try[t] = us_try[t].copy()
-
 
             with np.warnings.catch_warnings():
                 np.warnings.simplefilter(warning)

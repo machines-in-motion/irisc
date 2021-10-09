@@ -70,30 +70,30 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         crocoddyl.DifferentialActionModelAbstract.__init__(self, state, nu, ndx)
         self.dynamics = PenumaticHopped1D()
         self.isTerminal = isTerminal
-        self.z_des = 3.
+        self.z_des = 2.
         self.scale = .5/T  
         #
         self.t = t  # will be used to scale costs 
         self.T = T  # horizon
         self.t1 = int(T/2) - 2 # phase one 
-        self.t2 = self.t1 + 2
+        self.t2 = self.t1 + 4
         self.w = [] 
         # running cost weights 
-        self.w += [1.e+3] # mass position  w[0]
-        self.w += [1.e+3] # piston position  w[1]
-        self.w += [1.e+0] # control w[2]
+        self.w += [1.e+1] # mass position  w[0]
+        self.w += [1.e+1] # piston position  w[1]
+        self.w += [1.e-2] # control w[2]
         # jump phase 
-        self.w += [1.e+4] # mass height  w[3]
-        self.w += [1.e+1] # piston position w[4] 
-        self.w += [1.e+3] # mass velocity  w[5]
-        self.w += [1.e+0] # control weight w[6]
+        self.w += [1.e+2] # mass height  w[3]
+        self.w += [1.e-1] # piston position w[4] 
+        self.w += [1.e+0] # mass velocity  w[5]
+        self.w += [1.e-2] # control weight w[6]
         # terminal 
-        self.w += [1.e+4] # mass position w[7]
-        self.w += [1.e+4] # piston position w[8]
-        self.w += [1.e+4] # mass and piston velocties w[9] 
+        self.w += [1.e+1] # mass position w[7]
+        self.w += [1.e+1] # piston position w[8]
+        self.w += [1.e+1] # mass and piston velocties w[9] 
         # extra term to phase 1 
 
-        self.w += [0.] # w[10]
+        self.w += [1.e-5] # w[10]
         
         
 
