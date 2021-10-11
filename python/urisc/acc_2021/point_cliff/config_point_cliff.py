@@ -9,8 +9,8 @@ horizon = 100
 
 horizon = 100 
 x0 = np.zeros(4)
-initial_covariance = 1.e-5 * np.eye(4)
-process_noise = 1.e-6*np.eye(4)
+initial_covariance = 1.e-3 * np.eye(4)
+process_noise = 1.e-3*np.eye(4)
 # process_noise[1,1] = 1.e-2 
-measurement_noise = 1.e-5*np.eye(4)
-sensitivity =  -.2
+measurement_noise = 1.e-3*np.eye(4)
+sensitivity = 1.e-8

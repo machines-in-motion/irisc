@@ -1,6 +1,6 @@
 """ A class that holds process and measurement uncertainty models for the shooting problem """
 import numpy as np 
-
+import scipy.linalg as scl
 
 
 class UncertaintyModel: 
@@ -74,14 +74,13 @@ class ProblemUncertainty:
         self.runningModels = modelUncertainties 
         self.runningDatas = []
 
+
         for uModel in self.runningModels: 
             self.runningDatas += [uModel.createData()]
 
     def calc(self, xs, us): 
         for i, uModel in enumerate(self.runningModels): 
             uModel.calc(self.runningDatas[i], xs[i], us[i])
-            
-
 
     def sample_process(self, t, x, u):
         """ returns a random disturbed state """
