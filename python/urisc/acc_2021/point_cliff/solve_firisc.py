@@ -32,20 +32,25 @@ if __name__ == "__main__":
 
     irisc_converged = solver.solve(xs, us, MAX_ITER, False)
 
+    #
+    if sensitivity < 0.:
+        save_path = "solutions/risk_averse"
+    else:
+        save_path = "solutions/risk_seeking"
 
+    logger = solver.getCallbacks()[0]  
     if SAVE_SOLN:
         print(" Saving FDDP Solution ".center(LINE_WIDTH, '-'))
-        np.save("solutions/uRiSC_xs", np.array(solver.xs))
-        np.save("solutions/uRiSC_us", np.array(solver.us))
-        np.save("solutions/uRiSC_K", np.array(solver.K))  
-        logger = solver.getCallbacks()[0] 
-        np.save("solutions/uRiSC_costs", np.array(logger.costs))
-        np.save("solutions/uRiSC_stepLengths", np.array(logger.steps))
-        np.save("solutions/uRiSC_gaps", np.array(logger.fs))
-        np.save("solutions/uRiSC_grads", np.array(logger.grads))
-        np.save("solutions/uRiSC_stops", np.array(logger.stops))
-        np.save("solutions/uRiSC_uRegs", np.array(logger.u_regs))
-        np.save("solutions/uRiSC_xRegs", np.array(logger.x_regs))
+        np.save(save_path+"/iRiSC_xs", np.array(solver.xs))
+        np.save(save_path+"/iRiSC_us", np.array(solver.us))
+        np.save(save_path+"/iRiSC_K", np.array(solver.K))  
+        np.save(save_path+"/iRiSC_costs", np.array(logger.costs))
+        np.save(save_path+"/iRiSC_stepLengths", np.array(logger.steps))
+        np.save(save_path+"/iRiSC_gaps", np.array(logger.fs))
+        np.save(save_path+"/iRiSC_grads", np.array(logger.grads))
+        np.save(save_path+"/iRiSC_stops", np.array(logger.stops))
+        np.save(save_path+"/iRiSC_uRegs", np.array(logger.u_regs))
+        np.save(save_path+"/iRiSC_xRegs", np.array(logger.x_regs))
     #
     if PLOT_SOLN:
         print(" Plotting FDDP Solution ".center(LINE_WIDTH, '-'))
