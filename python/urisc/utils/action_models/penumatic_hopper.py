@@ -54,6 +54,17 @@ class PenumaticHopped1D:
         vnext = x[2:] + dt*dv 
         return qnext, vnext 
 
+    def contact_force(self, x):
+        e = x[1] - x[0] + self.d0
+        if e < 0.:
+            f = 0.
+        elif e >= 0 and e < self.alpha:
+            scale = .5*self.k / self.alpha
+            f = scale*(e**2)  
+        else:
+            f = self.inv_m*self.k*e - .5*self.inv_m*self.k*self.alpha  
+            
+        return f 
 
 
 
@@ -85,7 +96,7 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         # jump phase 
         self.w += [1.e+2] # mass height  w[3]
         self.w += [1.e-1] # piston position w[4] 
-        self.w += [1.e+0] # mass velocity  w[5]
+        self.w += [1.e+1] # mass velocity  w[5]
         self.w += [1.e-2] # control weight w[6]
         # terminal 
         self.w += [1.e+1] # mass position w[7]
@@ -94,7 +105,8 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         # extra term to phase 1 
 
         self.w += [1.e-5] # w[10]
-        
+
+        self.cost_scale = 1.e-1        
         
 
     def _running_cost(self, t, x, u): 
@@ -104,10 +116,12 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         else:
             cost = .5*self.w[3]*(x[0]-self.z_des)**2 + self.w[4]*x[1]**2 
             cost +=  self.w[5]*x[2]**2 + self.w[6]*u[0]**2
+        cost *= self.cost_scale
         return cost 
     
     def _terminal_cost(self, x):
         cost = self.w[7]*(x[0]-self.dynamics.d0)**2 + self.w[8]*x[1]**2 + self.w[9]*x[2:].dot(x[2:])
+        cost *= self.cost_scale
         return cost 
 
     def calc(self, data, x, u=None): 
@@ -143,6 +157,8 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
             Lxx[2,2] = 2.*self.w[9]
             Lx[3] = 2.*self.w[9]*x[3]
             Lxx[3,3] = 2.*self.w[9]
+            Lx *= self.cost_scale 
+            Lxx *= self.cost_scale
         else:
             t = self.t 
             if t<= self.t1 or t > self.t2:
@@ -163,6 +179,11 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
                 Lxx[1,1] = 2.*self.w[4]
                 Lx[2] = 2.*self.w[5]*x[2] 
                 Lxx[2,2] = 2.*self.w[5]
+            
+            Lx *= self.cost_scale 
+            Lxx *= self.cost_scale 
+            Lu *= self.cost_scale 
+            Luu *= self.cost_scale 
             # dynamics derivatives 
             Fx, Fu = self.dynamics.derivatives(x,u)
         # COPY TO DATA 

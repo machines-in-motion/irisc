@@ -20,7 +20,7 @@ if __name__ == "__main__":
     # horizon = 100
     # uncertainty models 
     initial_covariance = 1.e-3 * np.eye(4)
-    process_noise = 1.e-4*np.eye(4)
+    process_noise = 1.e-3*np.eye(4)
     measurement_noise = 1.e-5*np.eye(4)
     sensitivity = -.1
     # MAX_ITER = 1
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     xs = [x0]*(horizon+1)
     us = [np.array([0.])]*horizon    
     # 
-    converged = solver.solve(xs,us, MAX_ITER, True)
+    converged = solver.solve(xs,us, MAX_ITER, False)
     if not converged:
         print(" uRiSC Solver Did Not Converge ".center(LINE_WIDTH, '!'))
     else:

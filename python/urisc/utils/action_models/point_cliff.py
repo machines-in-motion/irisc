@@ -32,14 +32,17 @@ class DifferentialActionModelCliff(crocoddyl.DifferentialActionModelAbstract):
         self.g = np.array([0. , -9.81])
         self.isTerminal = isTerminal
         self.mass = 1. 
+        self.cost_scale = 1.e-1
 
     def _running_cost(self, x, u):
         cost = 0.1/((.1*x[1] + 1.)**10) + u[0]**2 + .01*u[1]**2 
         # cost = 10*((x[0]-10.)**2) + 10*(x[1]**2) + 1*(x[2]**2) + 1*(x[3]**2)   + u[0]**2 + .01*u[1]**2 
+        cost *= self.cost_scale
         return cost
 
     def _terminal_cost(self, x, u):
-        cost = 1000*((x[0]-10.)**2) + 1000*(x[1]**2) + 1000*(x[2]**2) + 1000*(x[3]**2)  
+        cost = 20000*((x[0]-10.)**2) + 20000*(x[1]**2) + 1000*(x[2]**2) + 1000*(x[3]**2)  
+        cost *= self.cost_scale
         return cost 
      
     def calc(self, data, x, u=None):
@@ -66,14 +69,16 @@ class DifferentialActionModelCliff(crocoddyl.DifferentialActionModelAbstract):
         Luu = np.zeros([2,2])
         Lxu = np.zeros([4,2])
         if self.isTerminal:
-            Lx[0] = 2000.*(x[0]-10)
-            Lx[1] = 2000.*x[1]
+            Lx[0] = 40000.*(x[0]-10)
+            Lx[1] = 40000.*x[1]
             Lx[2] = 2000.*x[2]
             Lx[3] = 2000.*x[3]     
-            Lxx[0,0] = 2000. 
-            Lxx[1,1] = 2000. 
+            Lxx[0,0] = 40000. 
+            Lxx[1,1] = 40000. 
             Lxx[2,2] = 2000. 
             Lxx[3,3] = 2000. 
+            Lx *= self.cost_scale 
+            Lxx *= self.cost_scale 
         else:
             Lx[1] = - 0.1 /((1 + .1*x[1])**11)
             Lu[0] = 2.*u[0] 
@@ -81,6 +86,12 @@ class DifferentialActionModelCliff(crocoddyl.DifferentialActionModelAbstract):
             Lxx[1,1] = 0.11/((.1*x[1]+1.)**12)
             Luu[0,0] = 2. 
             Luu[1,1] = 0.02
+
+            Lx *= self.cost_scale 
+            Lxx *= self.cost_scale 
+            Lu *= self.cost_scale 
+            Luu *= self.cost_scale 
+
             Fu[0,0] = 1./self.mass 
             Fu[1,1] = 1./self.mass 
 

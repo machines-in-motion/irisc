@@ -34,6 +34,18 @@ class UncertaintyModel:
     def measurement_increment(self, y, dy):
         return self.mModel.integrate(y, dy)
 
+    def sample_process(self, data, x, u):
+        self.calc(data, x, u)
+        dist = np.random.multivariate_normal(np.zeros(self.ndx), data.Omega)
+        return self.state.integrate(x, dist)
+
+    def sample_measurement(self, data, x, u):
+        self.calc(data, x, u)
+        dist = np.random.multivariate_normal(np.zeros(self.ny), data.Gamma)
+        return self.measurement_increment(data.y, dist)
+
+
+
 
 class UncertaintyData: 
     def __init__(self, model):

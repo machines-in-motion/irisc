@@ -38,8 +38,8 @@ if __name__ == "__main__":
     controller = controllers.DDPController(running_models+[terminal_model], xs ,us, feedback)
 
     # uncertainty models 
-    initial_covariance = 1.e-5 * np.eye(4)
-    process_noise = 1.e-5*np.eye(4)
+    initial_covariance = 1.e-4 * np.eye(4)
+    process_noise = 1.e-4*np.eye(4)
     measurement_noise = 1.e-6*np.eye(4)
     uncertainty_models = []
     for i, m in enumerate(running_models+[terminal_model]):

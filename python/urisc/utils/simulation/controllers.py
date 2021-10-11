@@ -33,7 +33,7 @@ class DDPController(AbstractController):
     def __init__(self, action_models, xs, us, K, dt=1.e-2):
         super().__init__(action_models, xs, us)
         self.K = K 
-        self.dt = 1.e-2 
+        self.dt = dt
 
     def __call__(self, t, d, x):
         """ takes a feedback state, control index, and simulation index
