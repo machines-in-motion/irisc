@@ -69,31 +69,37 @@ class ExtendedKalmanFilter(AbstractEstimator):
 
 
 class RiskSensitiveFilter(AbstractEstimator):
-    def __init__(self, shootingProblem, problemUncertainty, xs, us, sensitivity):
-        super().__init__(problemUncertainty)
+    def __init__(self, x0, chi0, processModels, uncertaintyModels, n_steps, xs, us, sensitivity):
+        super().__init__(processModels, uncertaintyModels)
 
-        self.chi = [self.uncertainty.P0.copy()]
-        self.xhat = [self.uncertainty.x0.copy()]
-        self.problem = shootingProblem
+        self.chi = [chi0.copy()]
+        self.xhat = [x0.copy()]
+        self.nsteps = n_steps
+
         self.sigma = sensitivity
         self.xs = xs 
         self.us = us 
         # evaluate the cost along the nominal trajectory 
         # keep in mind all approximations are computed along nominal trajectory 
-        self.problem.calc(self.xs, self.us)
-        self.problem.calcDiff(self.xs, self.us)
-        self.uncertainty.calc(self.xs, self.us) # compute H, Omega, Gamma 
 
-    def update(self, t, y, xprev, u):
+
+    def update(self, t, i, y, xprev, u):
         """ some stuff
         Args:
             xprev: previous filtered state and not minimum stress 
         
         """
-        pdata = self.problem.runningDatas[t]
-        udata = self.uncertainty.runningDatas
 
-        left = scl.linalg.inv(self.chi[t]) + udata.H.T.dot(udata.invGamma).dot(udata.H)
+        umodel = self.uncertaintyModels[t][i] # uncertainty model
+        udata = self.uncertaintyDatas[t][i] # uncertainty data 
+
+        pmodel = self.processModels[t][i] 
+        pdata  = self.processDatas[t][i]
+        umodel.calc(udata, xprev, u)
+        pmodel.calc(pdata, xprev,u)
+        pmodel.calcDiff(pdata, xprev,u)
+
+        left = scl.inv(self.chi[t]) + udata.H.T.dot(udata.invGamma).dot(udata.H)
         left += self.sigma*pdata.Lxx
 
         Lb = scl.cho_factor(left, lower=True)
@@ -109,9 +115,14 @@ class RiskSensitiveFilter(AbstractEstimator):
         # estimate 
         innovation = y-udata.H.dot(xprev)
         correction = Gain.dot(innovation)
-        prediction = pdata.Fx.dot(xprev) + pdata.Fu.dot(u) + correction
         # 
-        right_xhat = pdata.Lxx.dot(xprev) + pdata.Lxu.dot(u) + pdata.Lx
+        if u.shape == (1,):
+            prediction = pdata.Fx.dot(xprev) + u[0]*pdata.Fu + correction
+            right_xhat = pdata.Lxx.dot(xprev) + u[0]*pdata.Lxu + pdata.Lx
+        else:
+            prediction = pdata.Fx.dot(xprev) + pdata.Fu.dot(u) + correction
+            right_xhat = pdata.Lxx.dot(xprev) + pdata.Lxu.dot(u) + pdata.Lx
+        # 
         pre_xhat = scl.cho_solve(Lb, right_xhat)
         self.xhat += [ prediction - self.sigma*pdata.Fx.dot(pre_xhat)]
 

@@ -16,9 +16,9 @@ plan_dt = 1.e-2
 control_dt = 1.e-3 
 sim_dt = 1.e-5
 
-initial_covariance = 1.e-4 * np.eye(4)
-process_noise = 1.e-4*np.eye(4)
+initial_covariance = 1.e-3 * np.eye(4)
+process_noise = 1.e-3*np.eye(4)
 # process_noise[1,1] = 1.e-2 
-measurement_noise = 1.e-4*np.eye(4)
-sensitivity =  -.2
+measurement_noise = 1.e-3*np.eye(4)
+sensitivity =  .2
 
