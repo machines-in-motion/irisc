@@ -1,6 +1,6 @@
 import numpy as np 
 import matplotlib.pyplot as plt 
-from hopper_config import *
+from config_penumatic_hopper import *
 import os, sys
 src_path = os.path.abspath('../../') 
 sys.path.append(src_path) 
@@ -14,15 +14,16 @@ if __name__ == "__main__":
     K_ddp = np.load("solutions/ddp_K.npy")
     print(K_ddp.shape)
 
-    xs_risk_seeking = np.load("solutions/risk_seeking/uRiSC_xs.npy")
-    us_risk_seeking = np.load("solutions/risk_seeking/uRiSC_us.npy")
-    K_risk_seeking = np.load("solutions/risk_seeking/uRiSC_K.npy")
+    xs_risk_seeking = np.load("solutions/risk_seeking/iRiSC_xs.npy")
+    us_risk_seeking = np.load("solutions/risk_seeking/iRiSC_us.npy")
+    K_risk_seeking = np.load("solutions/risk_seeking/iRiSC_K.npy")
 
-    xs_risk_senstive = np.load("solutions/risk_sensitive/uRiSC_xs.npy")
-    us_risk_senstive = np.load("solutions/risk_sensitive/uRiSC_us.npy")
-    K_risk_senstive = np.load("solutions/risk_sensitive/uRiSC_K.npy")
+    xs_risk_senstive = np.load("solutions/risk_averse/iRiSC_xs.npy")
+    us_risk_senstive = np.load("solutions/risk_averse/iRiSC_us.npy")
+    K_risk_senstive = np.load("solutions/risk_averse/iRiSC_K.npy")
 
-    print(K_risk_senstive.shape)
+    # print(K_risk_senstive.shape)
+    time_array = plan_dt*np.arange(horizon+1)
 
     feet_ddp = xs_ddp[:,0] - xs_ddp[:,1] - .5*np.ones_like(time_array)
     feet_seeking = xs_risk_seeking[:,0] - xs_risk_seeking[:,1] - .5*np.ones_like(time_array)

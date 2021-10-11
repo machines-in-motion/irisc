@@ -5,23 +5,29 @@ import numpy as np
 import crocoddyl 
 import matplotlib.pyplot as plt 
 
+
 import os, sys
 src_path = os.path.abspath('../../') 
 sys.path.append(src_path) 
 
 from utils.action_models import penumatic_hopper 
-from hopper_config import *
+from solvers import firisc
+from utils.uncertainty import measurement_models, process_models, problem_uncertainty
+from utils.problems import penumatic_hopper_problem 
+from config_penumatic_hopper import *
+
+
+
 
 if __name__ == "__main__":
-    print(" Running FDDP for Penumatic Hopper ".center(LINE_WIDTH, '#'))
-    # 
-    running_models = []
-    for t in range(horizon): 
-        diff_hopper = penumatic_hopper.DifferentialActionModelHopper(t, horizon, False) 
-        running_models += [crocoddyl.IntegratedActionModelEuler(diff_hopper, dt)] 
-    diff_hopper = penumatic_hopper.DifferentialActionModelHopper(horizon, horizon, True) 
-    terminal_model = crocoddyl.IntegratedActionModelEuler(diff_hopper, dt) 
-    problem = crocoddyl.ShootingProblem(x0, running_models, terminal_model)
+    # load ddp solution 
+
+    p_models, u_models, p_estimate, u_estimate = penumatic_hopper_problem.full_state_uniform_hopper(plan_dt, horizon, 
+    process_noise, measurement_noise, control_dt)
+
+
+    problem = crocoddyl.ShootingProblem(x0, p_models[:-1], p_models[-1])
+
 
     solver = crocoddyl.SolverFDDP(problem)
     solver.setCallbacks([
@@ -54,7 +60,7 @@ if __name__ == "__main__":
     #
     if PLOT_FIGS:
         print(" Plotting FDDP Solution ".center(LINE_WIDTH, '-'))
-        time_array = dt*np.arange(horizon+1)
+        time_array = plan_dt*np.arange(horizon+1)
         #
         foot_planned = np.array(solver.xs)[:,0] - np.array(solver.xs)[:,1] - .5*np.ones_like(time_array)
         plt.figure("trajectory plot")

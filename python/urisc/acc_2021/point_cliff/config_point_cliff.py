@@ -13,4 +13,10 @@ initial_covariance = 1.e-3 * np.eye(4)
 process_noise = 1.e-3*np.eye(4)
 # process_noise[1,1] = 1.e-2 
 measurement_noise = 1.e-3*np.eye(4)
-sensitivity = 1.e-8
+sensitivity = 1.e-2
+
+
+MAX_ITER = 100 
+PLOT_SOLN = True
+SAVE_SOLN = True 
+LINE_WIDTH = 100

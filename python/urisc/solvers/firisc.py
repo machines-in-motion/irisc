@@ -90,7 +90,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         # print("Backward Pass is Done")
         
     def tryStep(self, stepLength):
-        self.unscentedForwardPass(stepLength)
+        self.expectedForwardPass(stepLength)
         return self.cost - self.cost_try 
 
     def expectedImprovement(self):
@@ -107,7 +107,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         
     def solve(self, init_xs=None, init_us=None, maxiter=100, isFeasible=False, regInit=None):
         self.setCandidate(init_xs, init_us, isFeasible)
-        self.cost = self.unscentedCost()
+        self.cost = self.expected_cost(self.xs, self.us)
         print("initial cost is %s"%self.cost)
         print("initial trajectory feasibility %s"%self.isFeasible)      
         self.n_little_improvement = 0
@@ -174,7 +174,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
                 print('Solver converged with little improvement in the last 5 iterations')
                 return True 
 
-            if self.n_min_alpha == 10:
+            if self.n_min_alpha == 15:
                 print("Line search is not making any improvements")
                 return False 
 
@@ -192,7 +192,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
                                                         self.problem.runningDatas,
                                                         self.uncertainty.runningModels,  
                                                         self.uncertainty.runningDatas)):
-            inv_V = np.linalg.inv(self.V[t+1]) + self.x_reg*np.eye(model.state.ndx)
+            inv_V = np.linalg.inv(self.V[t+1]) #+ self.x_reg*np.eye(model.state.ndx)
             if VERBOSE: print("inv V[%s]"%t)
             self.M[t] = np.linalg.inv(self.sigma * udata.Omega + inv_V)
             # self.M[t] = .5*(self.M[t]  + self.M[t].T) # a bit more stability 
@@ -202,7 +202,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             #
             Qx = data.Lx + data.Fx.T.dot(self.M[t]).dot(self.fs[t+1]) + data.Fx.T.dot(N_t) 
             Qu = data.Lu + data.Fu.T.dot(self.M[t]).dot(self.fs[t+1]) + data.Fu.T.dot(N_t) 
-            Quu = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu) + self.u_reg*np.eye(model.nu)
+            Quu = data.Luu + data.Fu.T.dot(self.M[t]).dot(data.Fu) #+ self.u_reg*np.eye(model.nu)
             # Quu = .5*(Quu + Quu.T) # a bit more stability 
             Qux = data.Lxu.T + data.Fu.T.dot(self.M[t]).dot(data.Fx) 
             if len(Qux.shape) == 1:
@@ -278,6 +278,42 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         # self.isFeasible = True 
         return self.xs_try, self.us_try, self.cost_try
 
+    def expectedForwardPass(self, stepLength, warning='error'):
+        self.cost_try = 0
+        self.xs_try[0] = self.xs[0].copy()
+        m0 = self.problem.runningModels[0]
+
+        self.xs_try = [m0.state.integrate(self.problem.x0, (stepLength-1)*self.fs[0])] + [np.nan] * self.problem.T
+        self.us_try =  [np.nan] * self.problem.T
+        # print("going into loop")
+        for t, (m, d) in enumerate(zip(self.problem.runningModels, self.problem.runningDatas)):
+            self.us_try[t] = self.us[t] - stepLength*self.k[t] - \
+                self.K[t].dot(m.state.diff(self.xs[t], self.xs_try[t]))
+            # print("us_try")
+            with np.warnings.catch_warnings():
+                np.warnings.simplefilter(warning)
+                m.calc(d, self.xs_try[t], self.us_try[t])
+
+            # update state 
+            self.xs_try[t + 1] = m.state.integrate(d.xnext.copy(), (stepLength-1)*self.fs[t+1]) 
+            # print("xs_try") 
+
+            raiseIfNan(d.cost, BaseException('forward error'))
+            # print("nan cost")
+            raiseIfNan(self.xs_try[t + 1], BaseException('forward error'))
+            # print("nan state")
+            # store undisturbed trajectory 
+            
+        with np.warnings.catch_warnings():
+            np.warnings.simplefilter(warning)
+            self.problem.terminalModel.calc(self.problem.terminalData, self.xs_try[-1])
+        raiseIfNan(self.problem.terminalData.cost, BaseException('forward error'))
+        
+        self.cost_try = self.expected_cost(self.xs_try, self.us_try)
+        
+        # self.isFeasible = True 
+        return self.xs_try, self.us_try, self.cost_try
+
 
 
     def expected_cost(self, xs, us): 
@@ -324,42 +360,6 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             kappa *= 1/np.sqrt(n)
         ctry -= -self.inv_sigma*np.log(kappa)
         return ctry
-
-    
-    # def unscentedCost(self, warning='error'):
-    #     for i in range(self.sample_size): 
-            
-    #         xs_try = [xi.copy() for xi in self.xs] 
-    #         us_try = [ui.copy() for ui in self.us]
-        
-    #         for t, (m, d) in enumerate(zip(self.problem.runningModels, self.problem.runningDatas)):
-    #             # update control 
-    #             ti = sum(self.ndxs[:t])
-    #             tf = sum(self.ndxs[:t+1])
-    #             if i != 0 and self.samples[ti:tf, i].dot(self.samples[ti:tf, i])>1.e-10:
-    #                 xs_try[t] = m.state.integrate(xs_try[t], self.samples[ti:tf, i])
-       
-    #             with np.warnings.catch_warnings():
-    #                 np.warnings.simplefilter(warning)
-    #                 m.calc(d, xs_try[t], us_try[t])
-    #             # update state 
-
-    #             self.sample_costs[t, i] = d.cost
-    #             raiseIfNan([self.sample_costs[t, i], d.cost], BaseException('forward error'))
-    #             raiseIfNan(xs_try[t], BaseException('forward error'))
-
-    #         with np.warnings.catch_warnings():
-    #             np.warnings.simplefilter(warning)
-    #             fm = self.problem.terminalModel
-    #             xs_try[-1] = fm.state.integrate(xs_try[-1], self.samples[-fm.state.ndx:,i])
-    #             self.problem.terminalModel.calc(self.problem.terminalData, xs_try[-1])
-    #             self.sample_costs[-1, i] = self.problem.terminalData.cost
-    #         raiseIfNan(self.sample_costs[-1, i], BaseException('forward error'))
-        
-    #     cost = self.expected_cost()
-    #     # self.isFeasible = True 
-    #     return cost
- 
 
     def increaseRegularization(self):
         self.x_reg *= self.regFactor
@@ -423,34 +423,3 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
 
         self.kff_init = None 
         self.Kfb_init = None # first iteration 
-
-
-
-    # def forwardPass(self, stepLength, warning='error'):
-    #     ctry = 0
-    #     self.xs_try[0] = self.xs[0].copy()
-    #     self.fs[0] = np.zeros(self.problem.runningModels[0].state.ndx)
-
-    #     for t, (m, d) in enumerate(zip(self.problem.runningModels, self.problem.runningDatas)):
-    #         # update control 
-    #         self.us_try[t] = self.us[t] - stepLength*self.kff[t] - \
-    #             self.Kfb[t].dot(m.state.diff(self.xs[t], self.xs_try[t]))
-            
-    #         with np.warnings.catch_warnings():
-    #             np.warnings.simplefilter(warning)
-    #             m.calc(d, self.xs_try[t], self.us_try[t])
-    #         # update state 
-    #         self.xs_try[t + 1] = d.xnext.copy()  # not sure copy helpful here.
-    #         ctry += d.cost
-    #         self.fs[t+1] = np.zeros(m.state.ndx)
-    #         raiseIfNan([ctry, d.cost], BaseException('forward error'))
-    #         raiseIfNan(self.xs_try[t + 1], BaseException('forward error'))
-    #     with np.warnings.catch_warnings():
-    #         np.warnings.simplefilter(warning)
-    #         self.problem.terminalModel.calc(
-    #             self.problem.terminalData, self.xs_try[-1])
-    #         ctry += self.problem.terminalData.cost
-    #     raiseIfNan(ctry, BaseException('forward error'))
-    #     self.cost_try = ctry
-    #     self.isFeasible = True 
-    #     return self.xs_try, self.us_try, ctry
