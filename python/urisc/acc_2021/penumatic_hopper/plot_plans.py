@@ -33,25 +33,25 @@ if __name__ == "__main__":
 
     plt.figure("Planned Trajectory")
     plt.plot(time_array, xs_ddp[:,0], label="Hip DDP")
-    plt.plot(time_array, xs_risk_seeking[:,0], label="Hip $\sigma=%s$"%abs(sensitivity))
-    plt.plot(time_array, xs_risk_senstive[:,0], label="Hip $\sigma=-%s$"%abs(sensitivity))
+    plt.plot(time_array, xs_risk_seeking[:,0], label="Hip $\sigma=%s$"%10)
+    plt.plot(time_array, xs_risk_senstive[:,0], label="Hip $\sigma=-%s$"%.5)
 
     plt.plot(time_array, feet_ddp,'--' ,label="Foot DDP")
-    plt.plot(time_array, feet_seeking,'--', label="Foot $\sigma=%s$"%abs(sensitivity))
-    plt.plot(time_array, feet_averse,'--', label="Foot $\sigma=-%s$"%abs(sensitivity))
+    plt.plot(time_array, feet_seeking,'--', label="Foot $\sigma=%s$"%10)
+    plt.plot(time_array, feet_averse,'--', label="Foot $\sigma=-%s$"%.5)
     plt.legend()
 
 
     plt.figure("Control Trajectory")
     plt.plot(time_array[:-1], us_ddp, label="u[t] DDP")
-    plt.plot(time_array[:-1], us_risk_seeking, label="u[t] $\sigma=%s$"%abs(sensitivity))
-    plt.plot(time_array[:-1], us_risk_senstive, label="u[t] $\sigma=-%s$"%abs(sensitivity))
+    plt.plot(time_array[:-1], us_risk_seeking, label="u[t] $\sigma=%s$"%10)
+    plt.plot(time_array[:-1], us_risk_senstive, label="u[t] $\sigma=-%s$"%.5)
     plt.legend()
 
     style = ['-','--','-.',':']
     state_names = ['x1', 'x2', 'x3', 'x4']
     Ks = [K_ddp, K_risk_seeking, K_risk_senstive]
-    names = ["DDP", "$\sigma=0.1$", "$\sigma=-%s$"%abs(sensitivity)]
+    names = ["DDP", "$\sigma$= %s"%10., "$\sigma=-%s$"%.5]
     ig, ax = plt.subplots(1, 4,figsize=(30,15))
     for i in range(4):
         for k, name in enumerate(names):

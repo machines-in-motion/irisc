@@ -44,6 +44,8 @@ if __name__ == "__main__":
         np.save(save_path+"/iRiSC_xs", np.array(solver.xs))
         np.save(save_path+"/iRiSC_us", np.array(solver.us))
         np.save(save_path+"/iRiSC_K", np.array(solver.K))  
+        np.save(save_path+"/iRiSC_V", np.array(solver.V))
+        np.save(save_path+"/iRiSC_v", np.array(solver.v))    
         np.save(save_path+"/iRiSC_costs", np.array(logger.costs))
         np.save(save_path+"/iRiSC_stepLengths", np.array(logger.steps))
         np.save(save_path+"/iRiSC_gaps", np.array(logger.fs))

@@ -1,6 +1,11 @@
+""" First Simulation of entire risk sensitive loop """
+
+""" runs a point mass simulation with ekf estimation """
 
 import numpy as np 
-import os,sys 
+import os, sys
+
+from numpy.core.arrayprint import set_string_function
 
 src_path = os.path.abspath('../../') 
 sys.path.append(src_path)
@@ -15,37 +20,39 @@ from utils.simulation import controllers, simulator
 import matplotlib.pyplot as plt 
 from config_penumatic_hopper import *
 
+MAX_ITER = 1000 
+LINE_WIDTH = 100
 
-
-
+SAVE_SOLN = True 
+PLOT_SOLN = True 
 if __name__ == "__main__":
-    # load ddp solution 
-    solution_path = "solutions/ddp"
+    if sensitivity < 0.:
+        solution_path = "solutions/risk_averse/iRiSC" 
+    else:
+        solution_path = "solutions/risk_seeking/iRiSC"
+
     xs = np.load(solution_path+'_xs.npy')
     us = np.load(solution_path+'_us.npy')
     feedback = np.load(solution_path+'_K.npy')
-
+    V = np.load(solution_path+'_V.npy')
+    v = np.load(solution_path+'_v.npy')
 
     p_models, u_models, p_estimate, u_estimate = penumatic_hopper_problem.full_state_uniform_hopper(plan_dt, horizon, 
     process_noise, measurement_noise, control_dt)
 
-
-    controller = controllers.DDPController(p_models, xs ,us, feedback, control_dt)
     n_steps = int(plan_dt/control_dt)
-    ekf = estimators.ExtendedKalmanFilter(x0, initial_covariance, p_estimate, u_estimate, n_steps)
-
-    hopper_dynamics = penumatic_hopper.PenumaticHopped1D()
-
+    controller = controllers.RiskSensitiveController(p_models, xs, us, feedback, V, v, sensitivity, control_dt)
+    estimator = estimators.RiskSensitiveFilter(x0, initial_covariance, p_estimate, u_estimate, n_steps, xs, us, sensitivity)
 
 
-    sim = simulator.HopperSimulator(hopper_dynamics, controller, ekf, x0, horizon, plan_dt, control_dt, sim_dt)
-
+    point_cliff_dynamics = penumatic_hopper.PenumaticHopped1D()
+    sim = simulator.HopperSimulator(point_cliff_dynamics, controller, estimator, x0, horizon, plan_dt, control_dt, sim_dt)
 
     sim.simulate()
-
-
+    
     trajectory = np.array(sim.xsim)
     hat_traj =  np.array(sim.xhsim)
+
 
     time_array = plan_dt*np.arange(horizon+1)
 

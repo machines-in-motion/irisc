@@ -26,6 +26,11 @@ class ExtendedKalmanFilter(AbstractEstimator):
         self.xhat = [x0.copy()]
         self.nsteps = n_steps
 
+    def reset(self):
+        chi0 = self.chi[0].copy()
+        x0 = self.xhat[0].copy()
+        self.chi = [chi0]
+        self.xhat = [x0]
 
     def predict(self,t,i,x,u):
         """ returns predicted state and covariance 
@@ -81,6 +86,14 @@ class RiskSensitiveFilter(AbstractEstimator):
         self.us = us 
         # evaluate the cost along the nominal trajectory 
         # keep in mind all approximations are computed along nominal trajectory 
+
+
+    def reset(self):
+        chi0 = self.chi[0].copy()
+        x0 = self.xhat[0].copy()
+        self.chi = [chi0]
+        self.xhat = [x0]
+
 
 
     def update(self, t, i, y, xprev, u):

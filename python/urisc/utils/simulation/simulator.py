@@ -66,6 +66,18 @@ class HopperSimulator(AbstractSimulator):
         self.xhsim = [self.estimator.xhat[0]] # estimated states 
         self.chi = [self.estimator.chi[0]]
 
+
+    def reset(self):
+        self.xsim = [] # true states 
+        self.usim = [] # control inputs 
+        self.fsim = [] # contact forces  
+        self.ysim = [] # observations 
+        self.xhsim = [self.estimator.xhat[0]] # estimated states 
+        self.chi = [self.estimator.chi[0]]
+        self.controller.reset()
+        self.estimator.reset()
+
+
     def step(self, x, u):
         """ computes one simulation step """
         dv = np.zeros(2)
@@ -94,9 +106,10 @@ class HopperSimulator(AbstractSimulator):
         self.xsim += [self.x0.copy()]
         xi = self.x0.copy()
         xh = self.x0.copy()
+        chi = self.chi[0].copy()
         for t in range(self.horizon):
             for i in range(self.n_control_steps):
-                ui = self.controller(t, i/self.n_control_steps, xh)
+                ui = self.controller(t, i/self.n_control_steps, xh, chi)
                 for _ in range(self.n_sim_steps):
                     xi, fi = self.step(xi, ui) 
                 
@@ -107,10 +120,11 @@ class HopperSimulator(AbstractSimulator):
                     yi = umodel.sample_measurement(udata, xi, ui) 
                     self.estimator.update(t,i,yi,xi,ui)
                     xh = self.estimator.xhat[-1].copy()
+                    chi = self.estimator.chi[-1].copy()
                 else:
                     xh = xi.copy()
-                self.fsim += [fi]
-                
+            self.fsim += [fi]
+
             self.usim += [ui]            
             self.xsim += [xi]
             self.xhsim += [self.estimator.xhat[-1]] # estimated states 
@@ -170,9 +184,10 @@ class PointMassSimulator(AbstractSimulator):
         self.xsim += [self.x0.copy()]
         xi = self.x0.copy()
         xh = self.x0.copy()
+        chi = self.chi[0].copy()
         for t in range(self.horizon):
             for i in range(self.n_control_steps):
-                ui = self.controller(t, i/self.n_control_steps, xh)
+                ui = self.controller(t, i/self.n_control_steps, xh, chi)
                 for _ in range(self.n_sim_steps):
                     xi = self.step(xi, ui)
                 if self.estimator is not None:
@@ -182,6 +197,7 @@ class PointMassSimulator(AbstractSimulator):
                     yi = umodel.sample_measurement(udata, xi, ui) 
                     self.estimator.update(t,i,yi,xi,ui)
                     xh = self.estimator.xhat[-1].copy()
+                    chi = self.estimator.chi[-1].copy()
                 else:
                     xh = xi.copy()
 

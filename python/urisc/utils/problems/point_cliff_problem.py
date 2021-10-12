@@ -32,8 +32,8 @@ def full_state_uniform_cliff_problem(plan_dt, horizon, process_noise, measuremen
         cliff_running_est = crocoddyl.IntegratedActionModelEuler(cliff_diff_running, dt_control) 
         
         for t in range(horizon):
-            p_model = process_models.FullStateProcess(models[t], np.sqrt(plan_dt)*process_noise) 
-            m_model = measurement_models.FullStateMeasurement(models[t], np.sqrt(plan_dt)*measurement_noise)
+            p_model = process_models.FullStateProcess(models[t], np.sqrt(dt_control)*process_noise) 
+            m_model = measurement_models.FullStateMeasurement(models[t], np.sqrt(dt_control)*measurement_noise)
             umodel = problem_uncertainty.UncertaintyModel(p_model, m_model)
             estimation_models += [[cliff_running_est]*n_steps]
             estimation_uncertainty += [[umodel]*n_steps]

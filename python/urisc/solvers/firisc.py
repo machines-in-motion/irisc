@@ -142,7 +142,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
                     print("Try Step Faild for alpha = %s"%a) 
                     continue 
             
-                if self.dV > 0.: # Cost has decreased, accept step 
+                if self.dV > 0.:# and self.cost_try>0.: # Cost has decreased, accept step 
                     # print("step accepted at iteration %s for alpha %s"%(i,a))
                     self.setCandidate(self.xs_try, self.us_try, self.isFeasible)
                     self.cost = self.cost_try 
@@ -289,20 +289,12 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         for t, (m, d) in enumerate(zip(self.problem.runningModels, self.problem.runningDatas)):
             self.us_try[t] = self.us[t] - stepLength*self.k[t] - \
                 self.K[t].dot(m.state.diff(self.xs[t], self.xs_try[t]))
-            # print("us_try")
             with np.warnings.catch_warnings():
                 np.warnings.simplefilter(warning)
                 m.calc(d, self.xs_try[t], self.us_try[t])
-
-            # update state 
             self.xs_try[t + 1] = m.state.integrate(d.xnext.copy(), (stepLength-1)*self.fs[t+1]) 
-            # print("xs_try") 
-
             raiseIfNan(d.cost, BaseException('forward error'))
-            # print("nan cost")
             raiseIfNan(self.xs_try[t + 1], BaseException('forward error'))
-            # print("nan state")
-            # store undisturbed trajectory 
             
         with np.warnings.catch_warnings():
             np.warnings.simplefilter(warning)
@@ -358,7 +350,8 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         kappa = 1. 
         for n in self.etas:
             kappa *= 1/np.sqrt(n)
-        ctry -= -self.inv_sigma*np.log(kappa)
+
+        ctry -= self.inv_sigma*np.log(kappa)
         return ctry
 
     def increaseRegularization(self):

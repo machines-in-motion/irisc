@@ -43,16 +43,20 @@ if __name__ == "__main__":
         print(" iRiSC Solver Converged ".center(LINE_WIDTH, '='))
 
     #
+    logger = solver.getCallbacks()[0] 
+    # 
     if sensitivity < 0.:
         save_path = "solutions/risk_averse"
     else:
         save_path = "solutions/risk_seeking"
+        
     if SAVE_SOLN:
         print(" Saving iRiSC Solution ".center(LINE_WIDTH, '-'))
         np.save(save_path+"/iRiSC_xs", np.array(solver.xs))
         np.save(save_path+"/iRiSC_us", np.array(solver.us))
         np.save(save_path+"/iRiSC_K", np.array(solver.K))  
-        logger = solver.getCallbacks()[0] 
+        np.save(save_path+"/iRiSC_V", np.array(solver.V))
+        np.save(save_path+"/iRiSC_v", np.array(solver.v))    
         np.save(save_path+"/iRiSC_costs", np.array(logger.costs))
         np.save(save_path+"/iRiSC_stepLengths", np.array(logger.steps))
         np.save(save_path+"/iRiSC_gaps", np.array(logger.fs))
