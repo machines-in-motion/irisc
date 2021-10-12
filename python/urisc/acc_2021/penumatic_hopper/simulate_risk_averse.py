@@ -61,11 +61,11 @@ if __name__ == "__main__":
         sim.simulate()
         trajectory_actual += [sim.xsim]
         trajectory_estimated += [sim.xhsim]
-        feedforward += [sim.xhsim]
+        feedforward += [sim.usim]
         feedback += [sim.controller.K_opt]
         forces += [sim.fsim]
 
-    save_path = "results/risk_averse"
+    save_path = "results2/risk_averse"
 
     np.save(save_path+"/averse_xsim", np.array(trajectory_actual))
     np.save(save_path+"/averse_xhsim", np.array(trajectory_estimated))

@@ -73,6 +73,13 @@ class PenumaticHopper1DViz:
         color='g',
         alpha=.2, ))
 
+    def plot_index(self, t, x1, x2, ax):
+        """ plots hopper at certain time index """
+        self.plot_hip(t,x1, ax)
+        self.plot_cylinder(t,x1, ax)
+        self.plot_gas_fill(t,x1, x2, ax)
+        self.plot_piston(t, x1, x2, ax)
+
     def plot_along_horizon(self, pts):
         """ pts is a list of time indices to take from xs """
         pass 
