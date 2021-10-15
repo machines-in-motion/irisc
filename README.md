@@ -1,27 +1,20 @@
-# iRiSC: Iterative Risk Sensitive Optimal Control for Partially Obsevable Systems
+# iRiSC: Iterative Risk Sensitive Optimal Control for Nonlinear Systems with Imperfect Observations
 
 This repository contains the python implementation for the iterative risk sensitive solvers accounting for process and measurement uncertainties
 
 ## How To Run a Demo
 
-Maybe I should take inspiration from crocoddyl github page 
+The scripts available under `acc_2021/penumatic_hopper` and `acc_2021/point_cliff` should be sufficient to get working
 
-
-## Related Papers
-
-- Jacobson 
-- Whittle Risk Sensitive LQG
-- Farbod
-- Brahaym
-- Impedance Optimization
-- iRiSC
 
 
 ## Dependencies
 
-- Pinocchio
-- Crocoddyl
+- [Pinocchio](https://github.com/stack-of-tasks/pinocchio)
+- [Crocoddyl](https://github.com/loco-3d/crocoddyl)
 
 
-## Assesing Risk
+
+
+
 
