@@ -131,7 +131,7 @@ dmypy.json
 # Personal
 
 .DS_Store
-*.pdf
+python/*.pdf
 *.png
 *.jpeg
 *.pyc
