@@ -4,7 +4,7 @@ This repository contains the python implementation for the iterative risk sensit
 
 ## How To Run a Demo
 
-The scripts available under `acc_2021/penumatic_hopper` and `acc_2021/point_cliff` should be sufficient to get working
+The scripts available under `acc_2021/penumatic_hopper` and `acc_2021/point_cliff` should be sufficient to get started
 
 
 
