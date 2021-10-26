@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 LINE_WIDTH = 100 
 
 
-class PenumaticHopped1D:
+class PneumaticHopper1D:
     def __init__(self):
         self.g = 9.81 
         self.mass = 2. 
@@ -79,7 +79,7 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         nu = 1 
         state =  crocoddyl.StateVector(nx)
         crocoddyl.DifferentialActionModelAbstract.__init__(self, state, nu, ndx)
-        self.dynamics = PenumaticHopped1D()
+        self.dynamics = PneumaticHopper1D()
         self.isTerminal = isTerminal
         self.z_des = 2.
         self.scale = .5/T  

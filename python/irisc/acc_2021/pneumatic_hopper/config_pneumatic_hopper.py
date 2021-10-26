@@ -5,7 +5,7 @@ import os,sys
 
 LINE_WIDTH = 100 
 PLOT_FIGS = True 
-SAVE_SOLN = False 
+SAVE_SOLN = True 
 
 x0 = np.array([0.5, 0., 0., 0.])
 MAX_ITER = 1000
@@ -20,5 +20,5 @@ initial_covariance = 1.e-4 * np.eye(4)
 process_noise = 1.e-4*np.eye(4)
 # process_noise[1,1] = 1.e-2 
 measurement_noise = 1.e-4*np.eye(4)
-sensitivity = -.5
+sensitivity = 10. 
 

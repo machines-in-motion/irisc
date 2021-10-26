@@ -4,8 +4,8 @@ import os,sys
 
 src_path = os.path.abspath('../../') 
 sys.path.append(src_path)
-from utils.action_models import penumatic_hopper
-from utils.problems import penumatic_hopper_problem
+from utils.action_models import pneumatic_hopper
+from utils.problems import pneumatic_hopper_problem
 from utils.uncertainty import problem_uncertainty
 
 
@@ -13,7 +13,7 @@ from utils.uncertainty import measurement_models, process_models, problem_uncert
 from utils.simulation import controllers, simulator
 
 import matplotlib.pyplot as plt 
-from config_penumatic_hopper import *
+from config_pneumatic_hopper import *
 
 
 
@@ -26,13 +26,13 @@ if __name__ == "__main__":
     feedback = np.load(solution_path+'_K.npy')
 
 
-    p_models, u_models, p_estimate, u_estimate = penumatic_hopper_problem.full_state_uniform_hopper(plan_dt, horizon, 
+    p_models, u_models, p_estimate, u_estimate = pneumatic_hopper_problem.full_state_uniform_hopper(plan_dt, horizon, 
     process_noise, measurement_noise, control_dt)
 
 
     controller = controllers.DDPController(p_models, xs ,us, feedback, control_dt)
     n_steps = int(plan_dt/1.e-3)
-    hopper_dynamics = penumatic_hopper.PenumaticHopped1D()
+    hopper_dynamics = pneumatic_hopper.PneumaticHopper1D()
     risk_estimator = estimators.RiskSensitiveFilter(x0, initial_covariance, p_estimate, u_estimate, n_steps, xs, us, sensitivity)
 
     risk_sim = simulator.HopperSimulator(hopper_dynamics, controller, risk_estimator, x0, horizon, plan_dt, control_dt, sim_dt)

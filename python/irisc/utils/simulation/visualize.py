@@ -6,7 +6,7 @@ import matplotlib.patches as m_patches
 from matplotlib.collections import PatchCollection
 
 
-class PenumaticHopper1DViz:
+class PneumaticHopper1DViz:
     def __init__(self, xs, us): 
         self.xs = xs 
         self.us = us 
@@ -87,6 +87,9 @@ class PenumaticHopper1DViz:
     def update_visual(self): 
         pass 
 
+
+# Code Below is courtesy of Julian Viereck 
+#  
 # def gviz_traj(self, traj, ax=None, start_time_offset=0., draw_full_interval=1., draw_endeffector_point=False):
 #         dX = self.dX
 #         hip_size = .1

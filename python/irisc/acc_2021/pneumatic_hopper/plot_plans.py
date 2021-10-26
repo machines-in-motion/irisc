@@ -1,14 +1,14 @@
 import numpy as np 
 import matplotlib.pyplot as plt 
-from config_penumatic_hopper import *
+from config_pneumatic_hopper import *
 import os, sys
 src_path = os.path.abspath('../../') 
 sys.path.append(src_path) 
 
-from utils.action_models import penumatic_hopper
+from utils.action_models import pneumatic_hopper
 
 if __name__ == "__main__": 
-    dynamics = penumatic_hopper.PenumaticHopped1D()
+    dynamics = pneumatic_hopper.PneumaticHopper1D()
     xs_ddp = np.load("solutions/ddp_xs.npy")
     us_ddp = np.load("solutions/ddp_us.npy")
     K_ddp = np.load("solutions/ddp_K.npy")

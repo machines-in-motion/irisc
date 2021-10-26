@@ -129,20 +129,6 @@ class HopperSimulator(AbstractSimulator):
             self.xsim += [xi]
             self.xhsim += [self.estimator.xhat[-1]] # estimated states 
             self.chi += [self.estimator.chi[-1]]
-            
-                
-            #     self.fsim += [fi]
-            # self.usim += [ui]
-            # if self.estimator is not None:
-            #     xi = self.uncertainty.sample_process(t, xi, ui) 
-            #     yi = self.uncertainty.sample_measurement(t, self.xsim[-1], self.usim[-1]) 
-            #     self.estimator.update(t, yi, self.xhsim[-1], self.usim[-1])
-
-            # self.xsim += [xi]
-            # self.xhsim += [self.estimator.xhat[-1]] # estimated states 
-            # self.chi += [self.estimator.chi[-1]]
-            
-
 
 
 class PointMassSimulator(AbstractSimulator):

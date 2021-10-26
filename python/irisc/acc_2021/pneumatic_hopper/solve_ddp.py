@@ -10,11 +10,8 @@ import os, sys
 src_path = os.path.abspath('../../') 
 sys.path.append(src_path) 
 
-from utils.action_models import penumatic_hopper 
-from solvers import firisc
-from utils.uncertainty import measurement_models, process_models, problem_uncertainty
-from utils.problems import penumatic_hopper_problem 
-from config_penumatic_hopper import *
+from utils.problems import pneumatic_hopper_problem 
+from config_pneumatic_hopper import *
 
 
 
@@ -22,7 +19,7 @@ from config_penumatic_hopper import *
 if __name__ == "__main__":
     # load ddp solution 
 
-    p_models, u_models, p_estimate, u_estimate = penumatic_hopper_problem.full_state_uniform_hopper(plan_dt, horizon, 
+    p_models, u_models, p_estimate, u_estimate = pneumatic_hopper_problem.full_state_uniform_hopper(plan_dt, horizon, 
     process_noise, measurement_noise, control_dt)
 
 
