@@ -230,54 +230,6 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             # qt = gt + self.fs[t+1].T.dot(self.M[t].dot(self.fs[t+1]) + N_t) #- .5*self.inv_sigma*np.log(linalg.det(2*np.pi*invWt))
             # self.dv[t] = qt - self.k[t].T.dot(Qu) + .5*self.k[t].T.dot(Quu).dot(self.k[t])
               
-    def unscentedForwardPass(self, stepLength, warning='error'):
-        self.cost_try = 0
-        self.xs_try[0] = self.xs[0].copy()
-        m0 = self.problem.runningModels[0]
-        for i in range(self.sample_size): 
-            
-            xs_try = [m0.state.integrate(self.problem.x0, (stepLength-1)*self.fs[0])] + [np.nan] * self.problem.T
-            us_try =  [np.nan] * self.problem.T
-        
-            for t, (m, d) in enumerate(zip(self.problem.runningModels, self.problem.runningDatas)):
-                # update control 
-                if t == 0:
-                    ti = 0 
-                    tf = self.ndxs[0]
-                else:
-                    ti = sum(self.ndxs[:t])
-                    tf = sum(self.ndxs[:t+1])
-                if i != 0 and self.samples[ti:tf, i].dot(self.samples[ti:tf, i])>1.e-10:
-                    xs_try[t] = m.state.integrate(xs_try[t], self.samples[ti:tf, i])
-                us_try[t] = self.us[t] - stepLength*self.k[t] - \
-                    self.K[t].dot(m.state.diff(self.xs[t], xs_try[t]))
-
-                with np.warnings.catch_warnings():
-                    np.warnings.simplefilter(warning)
-                    m.calc(d, xs_try[t], us_try[t])
-
-                # update state 
-                xs_try[t + 1] = m.state.integrate(d.xnext.copy(), (stepLength-1)*self.fs[t+1])  
-                self.sample_costs[t, i] = d.cost
-                raiseIfNan([self.sample_costs[t, i], d.cost], BaseException('forward error'))
-                raiseIfNan(xs_try[t + 1], BaseException('forward error'))
-                # store undisturbed trajectory 
-                if i == 0:
-                    self.xs_try[t+1] = xs_try[t+1].copy()
-                    self.us_try[t] = us_try[t].copy()
-
-            with np.warnings.catch_warnings():
-                np.warnings.simplefilter(warning)
-                fm = self.problem.terminalModel
-                xs_try[-1] = fm.state.integrate(xs_try[-1], self.samples[-fm.state.ndx:,i])
-                self.problem.terminalModel.calc(self.problem.terminalData, xs_try[-1])
-                self.sample_costs[-1, i] = self.problem.terminalData.cost
-            raiseIfNan(self.sample_costs[-1, i], BaseException('forward error'))
-        
-        self.cost_try = self.expected_cost()
-        # self.isFeasible = True 
-        return self.xs_try, self.us_try, self.cost_try
-
     def expectedForwardPass(self, stepLength, warning='error'):
         self.cost_try = 0
         self.xs_try[0] = self.xs[0].copy()
@@ -305,8 +257,6 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         
         # self.isFeasible = True 
         return self.xs_try, self.us_try, self.cost_try
-
-
 
     def expected_cost(self, xs, us): 
         self.costProblem.calc(xs, us)
@@ -387,32 +337,11 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         self.us_try = [np.nan] * self.problem.T
         # backward pass variables 
         self.M = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
-        self.Kfb = [np.zeros([p.nu, p.state.ndx]) for p in self.problem.runningModels] 
-        self.kff = [np.zeros(p.nu) for p in self.problem.runningModels]
         self.V = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
         self.v = [np.zeros(p.state.ndx) for p in self.models()]   
         self.dv = [0. for _ in self.models()]
-        # forward estimation 
-        self.xhat = [self.uncertainty.x0] + [np.zeros(p.state.nx) for p in self.problem.runningModels]
-        self.G = [np.zeros([p.state.ndx, m.ny]) for p,m in zip(self.problem.runningModels, self.uncertainty.runningModels)]  
-        self.P = [np.zeros([p.state.ndx, p.state.ndx]) for p in self.models()]   
-
-        # recoupling 
-        self.xcheck = [self.uncertainty.x0] + [np.zeros(p.state.nx) for p in self.problem.runningModels]
         self.K = [np.zeros([p.nu, p.state.ndx]) for p in self.problem.runningModels]
         self.k = [np.zeros([p.nu]) for p in self.problem.runningModels]
-
         # gaps 
         self.fs = [np.zeros(self.problem.runningModels[0].state.ndx)
                      ] + [np.zeros(p.state.ndx) for p in self.problem.runningModels]
-
-        # initializations 
-        self.P[0][:,:] = self.uncertainty.P0
-        self.xhat[0][:] = self.uncertainty.x0
-
-
-        self.delta_xhat = [np.zeros(p.state.ndx) for p in self.models()]   
-        self.delta_xcheck = [np.zeros(p.state.ndx) for p in self.models()]   
-
-        self.kff_init = None 
-        self.Kfb_init = None # first iteration 
