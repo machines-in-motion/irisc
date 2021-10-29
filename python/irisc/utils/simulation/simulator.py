@@ -102,12 +102,19 @@ class HopperSimulator(AbstractSimulator):
         return xnext, fc 
 
 
-    def simulate(self): 
+    def simulate(self, env=None): 
+        """ env here is dictionary that defines an environment chainge at a certain time """
         self.xsim += [self.x0.copy()]
         xi = self.x0.copy()
         xh = self.x0.copy()
         chi = self.chi[0].copy()
+        if env is not None:
+            new_env = env["height"]
+            env_time = env["time"]
         for t in range(self.horizon):
+            if env is not None:
+                if t == env_time:
+                    self.env = new_env
             for i in range(self.n_control_steps):
                 ui = self.controller(t, i/self.n_control_steps, xh, chi)
                 for _ in range(self.n_sim_steps):

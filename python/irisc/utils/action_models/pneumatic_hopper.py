@@ -91,13 +91,13 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         self.w = [] 
         # running cost weights 
         self.w += [1.e+2] # mass position  w[0]
-        self.w += [1.e+1] # piston position  w[1]
-        self.w += [1.e-2] # control w[2]
+        self.w += [5.e+0] # piston position  w[1]
+        self.w += [1.e-1] # control w[2]
         # jump phase 
         self.w += [1.e+2] # mass height  w[3]
         self.w += [1.e-1] # piston position w[4] 
         self.w += [1.e+0] # mass velocity  w[5]
-        self.w += [1.e-2] # control weight w[6]
+        self.w += [1.e-1] # control weight w[6]
         # terminal 
         self.w += [1.e+2] # mass position w[7]
         self.w += [1.e+2] # piston position w[8]
@@ -106,7 +106,7 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
 
         self.w +=  [1.e-3] # w[10]
 
-        self.cost_scale = 1.e-1 #1.e-2     
+        self.cost_scale =1.e+0 #5.e-3 #1.e-2     
         
 
     def _running_cost(self, t, x, u): 

@@ -17,6 +17,7 @@ class PneumaticHopper1DViz:
         self.piston_length = .25 
         self.piston_width = self.cylinder_diameter
         self.foot_length = self.hip_size - .05
+        self.ax = None 
 
     def plot_hip(self, x, y, ax):
         """ x,y in the args here are com coordinates """
@@ -76,7 +77,7 @@ class PneumaticHopper1DViz:
     def plot_index(self, t, x1, x2, ax):
         """ plots hopper at certain time index """
         self.plot_hip(t,x1, ax)
-        self.plot_cylinder(t,x1, ax)
+        # self.plot_cylinder(t,x1, ax)
         self.plot_gas_fill(t,x1, x2, ax)
         self.plot_piston(t, x1, x2, ax)
 
@@ -84,8 +85,32 @@ class PneumaticHopper1DViz:
         """ pts is a list of time indices to take from xs """
         pass 
 
-    def update_visual(self): 
-        pass 
+    def update_visual(self, x1, x2, env=0., title=None): 
+        if self.ax is None:
+            fig1 = plt.figure("visualization", figsize=(12,8))
+            self.ax = fig1.add_subplot(111)
+        else:
+            self.ax.clear()
+        #
+        endpoint = 2.1 
+        self.ax.set_xlim([-0.2, endpoint + 0.2])
+        self.ax.set_ylim([-0.1, 2.5])
+        xticks = np.round(np.arange(0., 2.1, .2),4).tolist()
+        self.ax.set_xticks(xticks)
+        self.ax.set_xticklabels(xticks)
+        self.ax.set_aspect('equal', 'box') 
+        # add ground 
+        self.ax.add_patch(m_patches.Rectangle(
+            (-10, env-0.1), 99., 0.1,
+            fill=False,
+            hatch='/',))
+
+        self.plot_index(1., x1, x2, self.ax)
+        plt.xlabel("x [m]", fontsize=15.)
+        plt.ylabel("y [m]", fontsize=15.)
+        if title is not None:
+            plt.savefig(title+".pdf")
+
 
 
 # Code Below is courtesy of Julian Viereck 

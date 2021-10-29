@@ -26,7 +26,7 @@ if __name__ == "__main__":
     problem = crocoddyl.ShootingProblem(x0, p_models[:-1], p_models[-1])
 
 
-    solver = crocoddyl.SolverFDDP(problem)
+    solver = crocoddyl.SolverDDP(problem)
     solver.setCallbacks([
     crocoddyl.CallbackLogger(),
     crocoddyl.CallbackVerbose()
@@ -43,17 +43,17 @@ if __name__ == "__main__":
     #
     if SAVE_SOLN:
         print(" Saving FDDP Solution ".center(LINE_WIDTH, '-'))
-        np.save("solutions/ddp_xs", np.array(solver.xs))
-        np.save("solutions/ddp_us", np.array(solver.us))
-        np.save("solutions/ddp_K", np.array(solver.K))  
+        np.save("solutions/ddp/ddp_xs", np.array(solver.xs))
+        np.save("solutions/ddp/ddp_us", np.array(solver.us))
+        np.save("solutions/ddp/ddp_K", np.array(solver.K))  
         logger = solver.getCallbacks()[0] 
-        np.save("solutions/ddp_costs", np.array(logger.costs))
-        np.save("solutions/ddp_stepLengths", np.array(logger.steps))
-        np.save("solutions/ddp_gaps", np.array(logger.fs))
-        np.save("solutions/ddp_grads", np.array(logger.grads))
-        np.save("solutions/ddp_stops", np.array(logger.stops))
-        np.save("solutions/ddp_uRegs", np.array(logger.u_regs))
-        np.save("solutions/ddp_xRegs", np.array(logger.x_regs))
+        np.save("solutions/ddp/ddp_costs", np.array(logger.costs))
+        np.save("solutions/ddp/ddp_stepLengths", np.array(logger.steps))
+        np.save("solutions/ddp/ddp_gaps", np.array(logger.fs))
+        np.save("solutions/ddp/ddp_grads", np.array(logger.grads))
+        np.save("solutions/ddp/ddp_stops", np.array(logger.stops))
+        np.save("solutions/ddp/ddp_uRegs", np.array(logger.u_regs))
+        np.save("solutions/ddp/ddp_xRegs", np.array(logger.x_regs))
     #
     if PLOT_FIGS:
         print(" Plotting FDDP Solution ".center(LINE_WIDTH, '-'))

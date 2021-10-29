@@ -9,12 +9,11 @@ from numpy.core.arrayprint import set_string_function
 
 src_path = os.path.abspath('../../') 
 sys.path.append(src_path)
+print(src_path)
 from utils.action_models import pneumatic_hopper
 from utils.problems import pneumatic_hopper_problem
-from utils.uncertainty import problem_uncertainty
 
-
-from utils.uncertainty import measurement_models, process_models, problem_uncertainty, estimators
+from utils.uncertainty import estimators
 from utils.simulation import controllers, simulator
 
 import matplotlib.pyplot as plt 
@@ -79,4 +78,4 @@ if __name__ == "__main__":
     force_time_array = 1.e-3*np.arange(horizon)
     plt.figure("contact forces")
     plt.plot(force_time_array, sim.fsim, label="$F^n$")
-    plt.show()
+    plt.show(block=False)

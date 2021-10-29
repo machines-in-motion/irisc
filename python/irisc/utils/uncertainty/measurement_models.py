@@ -34,7 +34,8 @@ class FullStateMeasurement(AbstractMeasurementModel):
     def calc(self, x, u): 
         """This whole thing here might not make sense unless 
         I assume calc as returning some disturbed measurement sample""" 
-        return x  
+        y = np.zeros(self.ny)
+        return y
 
     def deviation(self, y, xn): 
         return self.state.diff(xn, y)

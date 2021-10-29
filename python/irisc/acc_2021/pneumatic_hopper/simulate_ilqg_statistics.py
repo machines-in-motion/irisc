@@ -62,7 +62,7 @@ if __name__ == "__main__":
         feedback += [sim.controller.K]
         forces += [sim.fsim]
 
-    save_path = "results2/ddp"
+    save_path = "results/ddp"
 
     np.save(save_path+"/ddp_xsim", np.array(trajectory_actual))
     np.save(save_path+"/ddp_xhsim", np.array(trajectory_estimated))

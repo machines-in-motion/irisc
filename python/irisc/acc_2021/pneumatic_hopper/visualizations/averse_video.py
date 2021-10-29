@@ -1,51 +1,62 @@
+""" here we will run 3 different simulations, all with process and measurement noise, 
+in addition, in two of them, the ground height wil be changed during landing, one will increase
+ the other will decrease 
+ 
+ """
 
 import numpy as np 
-import os,sys 
-
-src_path = os.path.abspath('../../') 
+import os, sys
+src_path = os.path.abspath('../../../') 
+print(src_path)
 sys.path.append(src_path)
+
 from utils.action_models import pneumatic_hopper
 from utils.problems import pneumatic_hopper_problem
-from utils.uncertainty import problem_uncertainty
 
-
-from utils.uncertainty import measurement_models, process_models, problem_uncertainty, estimators
+from utils.uncertainty import estimators
 from utils.simulation import controllers, simulator
 
 import matplotlib.pyplot as plt 
-from config_pneumatic_hopper import *
+from acc_2021.pneumatic_hopper.config_pneumatic_hopper import *
+
+MAX_ITER = 1000 
+LINE_WIDTH = 100
+
+SAVE_SOLN = False 
+PLOT_SOLN = True 
 
 
-
+sensitivity = -.5
+grnd_heights = [0., -.1, .1]
 
 if __name__ == "__main__":
-    # load ddp solution 
-    solution_path = "solutions/ddp/ddp"
+    if sensitivity < 0.:
+        solution_path = "../solutions/risk_averse/iRiSC" 
+    else:
+        solution_path = "../solutions/risk_seeking/iRiSC"
+
     xs = np.load(solution_path+'_xs.npy')
     us = np.load(solution_path+'_us.npy')
     feedback = np.load(solution_path+'_K.npy')
-
+    V = np.load(solution_path+'_V.npy')
+    v = np.load(solution_path+'_v.npy')
 
     p_models, u_models, p_estimate, u_estimate = pneumatic_hopper_problem.full_state_uniform_hopper(plan_dt, horizon, 
     process_noise, measurement_noise, control_dt)
 
-
-    controller = controllers.DDPController(p_models, xs ,us, feedback, control_dt)
     n_steps = int(plan_dt/control_dt)
-    ekf = estimators.ExtendedKalmanFilter(x0, initial_covariance, p_estimate, u_estimate, n_steps)
+    controller = controllers.RiskSensitiveController(p_models, xs, us, feedback, V, v, sensitivity, control_dt)
+    estimator = estimators.RiskSensitiveFilter(x0, initial_covariance, p_estimate, u_estimate, n_steps, xs, us, sensitivity)
+
 
     hopper_dynamics = pneumatic_hopper.PneumaticHopper1D()
-
-
-
-    sim = simulator.HopperSimulator(hopper_dynamics, controller, ekf, x0, horizon, plan_dt, control_dt, sim_dt)
-
+    sim = simulator.HopperSimulator(hopper_dynamics, controller, estimator, x0, horizon, plan_dt, control_dt, sim_dt)
 
     sim.simulate()
-
-
+    
     trajectory = np.array(sim.xsim)
     hat_traj =  np.array(sim.xhsim)
+
 
     time_array = plan_dt*np.arange(horizon+1)
 

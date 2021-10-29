@@ -62,7 +62,7 @@ if __name__ == "__main__":
         feedback += [sim.controller.K_opt]
         forces += [sim.fsim]
 
-    save_path = "results2/risk_seeking"
+    save_path = "results/risk_seeking"
 
     np.save(save_path+"/seeking_xsim", np.array(trajectory_actual))
     np.save(save_path+"/seeking_xhsim", np.array(trajectory_estimated))
