@@ -39,7 +39,10 @@ class DDPController(AbstractController):
         self.dt = dt
 
 
-    def __call__(self, t, d, x, chi):
+    def load_plan(self):
+        pass 
+
+    def __call__(self, t, d, x, chi=None):
         """ takes a feedback state, control index, and simulation index
         and returns a control signal u """ 
         xdes = self.interpolate_xs(t,d)
