@@ -4,6 +4,7 @@ import numpy as np
 
 timeStep = 1.e-2
 horizon = 500 
+control_steps = 10 
 measurementModel= "FullStateUniform" 
 q0 = np.array(
        [0.2, 0.0, 0.25, 0.0, 0.0, 0.0, 1.0]
