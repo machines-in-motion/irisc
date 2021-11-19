@@ -114,27 +114,42 @@ if __name__ == "__main__":
         )
     logger.init_file()
 
+    # initialize, reset sim, log initial state, control and forces 
+    
 
-    # for t in range(problemConfig.horizon):
-    #     for i in range(problemConfig.control_steps): 
-    #         # get feedback 
-    #         q, dq = robot.get_state()
-    #         xi_hat = np.hstack([q,dq]) 
-    #         # estimate state x_har 
-    #         # for now assumed to be perfect observation 
-    #         # compute control 
-    #         ui = cntrl(t, .1*i, xi_hat)
-    #         robot.send_joint_command(ui)
+
+    for t in range(problemConfig.horizon):
+        for i in range(problemConfig.control_steps): 
+            time_sec = t * 0.01 + i * 0.001
+
+            # send control command 
+
+            # get feedback 
+
+
+            # compute control update 
+
+            #  log shit 
+
+
+            # get feedback 
+            q, dq = robot.get_state()
+            xi_hat = np.hstack([q,dq]) 
+            # estimate state x_har 
+            # for now assumed to be perfect observation 
+            # compute control 
+            ui = cntrl(t, .1*i, xi_hat)
+            robot.send_joint_command(ui)
             
-    #         env.step(sleep=False) 
-    #         active_ids, active_forces = robot.get_force()
-    #         if i == 0:
-    #             # log stuff 
-    #             x_hat[t] = xi_hat.copy()
-    #             u_act[t] = ui.copy()
-    #             for k, id in enumerate(active_ids):
-    #                 if id in contact_ids:
-    #                     f_act[t, contact_ids.index(id), :] = active_forces[k][:3]
+            env.step(sleep=False) 
+            active_ids, active_forces = robot.get_force()
+            if i == 0:
+                # log stuff 
+                x_hat[t] = xi_hat.copy()
+                u_act[t] = ui.copy()
+                for k, id in enumerate(active_ids):
+                    if id in contact_ids:
+                        f_act[t, contact_ids.index(id), :] = active_forces[k][:3]
 
 
 
