@@ -3,72 +3,241 @@
 import numpy as np
 import scipy.linalg as scl 
 import matplotlib.pylab as plt
+import os, sys, time 
+from os import patho
+from copy import deepcopy
+from pathlib import Path
+src_path = os.path.abspath('../../../')
+sys.path.append(src_path)
+
 
 from bullet_utils.env import BulletEnvWithGround
 from robot_properties_solo.solo12wrapper import Solo12Robot, Solo12Config
-
-import mim_control_cpp
-
 from dynamic_graph_head import ThreadHead, SimHead, SimVicon, HoldPDController
 import pinocchio as pin
+from utils.simulation import controllers 
+from demos.quadruped.utils import control_problem_solo12 
+import config as problemConfig 
+
+from mim_estimation_cpp import RobotStateEstimator, RobotStateEstimatorSettings
+from mim_data_utils import DataLogger, DataReader
 
 
 
 
 
+class SliderPDController:
+    def __init__(self, head, vicon_name, Kp, Kd):
+        #________ PD Parameters ________#
+        self.head = head
+        self.scale = np.pi
+        self.Kp = Kp
+        self.Kd = Kd
 
-class IterativeLinearQuadraticController:
-    def __init__(self, head, vicon_name, mu, kp, kd, kc, dc, kb, db):
-        self.set_k(kp, kd)
-        self.robot = Solo12Config.buildRobotWrapper()
+        #________ Robot Parameters ________#
+        self.robot = Solo12Robot()
+        self.robot_config = Solo12Config() 
+        self.pin_robot = self.robot_config.buildRobotWrapper()
         self.vicon_name = vicon_name
+        self.contact_names = []
+        leg = ["FL", "FR", "HL", "HR"]
+        for li in leg:
+            self.contact_names +=[li+"_ANKLE"]
 
-        self.x_com = [0.0, 0.0, 0.20]
-        self.xd_com = [0.0, 0.0, 0.0]
+        #________ Data Logs ________#
+        self.tau = np.zeros(self.pin_robot.nv)
+        self.q_sim = np.zeros(self.pin_robot.nq)
+        self.v_sim = np.zeros(self.pin_robot.nv)
+        self.q_est = np.zeros(self.pin_robot.nq)
+        self.v_est = np.zeros(self.pin_robot.nv)
+        self.x_sim = np.zeros(self.pin_robot.nq+ self.pin_robot.nv)
+        self.x_est = np.zeros(self.pin_robot.nq+ self.pin_robot.nv)
+        self.f_sim = np.zeros([4,3])
+        self.f_est = np.zeros([4,3])
+        self.c_sim = np.zeros(4)
+        self.c_est = np.zeros(4)    
+        # 
+        self.sim_imu_linacc = np.zeros(3)
+        self.sim_imu_angvel = np.zeros(3) 
+    
+        #________ initialze estimator ________#
 
-        self.x_des = np.array([ 
-             0.2, 0.142, 0.015,  0.2, -0.142,  0.015,
-            -0.2, 0.142, 0.015, -0.2, -0.142,  0.015
-        ])
-        self.xd_des = np.array(4*[0., 0., 0.])
+        estimator_settings = RobotStateEstimatorSettings()
+        estimator_settings.is_imu_frame = False
+        estimator_settings.pinocchio_model = self.pin_robot.model
+        estimator_settings.imu_in_base = pin.SE3(self.robot.rot_base_to_imu.T, self.robot.r_base_to_imu)
+        estimator_settings.end_effector_frame_names = (self.robot_config.end_effector_names)
+        estimator_settings.urdf_path = self.robot_config.urdf_path
+        robot_weight_per_ee = self.robot_config.mass * 9.81 / 4
+        estimator_settings.force_threshold_up = 0.8 * robot_weight_per_ee
+        estimator_settings.force_threshold_down = 0.2 * robot_weight_per_ee
+        self.estimator = RobotStateEstimator()
+        self.estimator.initialize(estimator_settings)
+        self.estimator.set_initial_state(self.q0, self.v0)
 
-        self.x_ori = [0., 0., 0., 1.]
-        self.x_angvel = [0., 0., 0.]
-        self.cnt_array = 4*[1,]
-        
-        self.w_com = np.zeros(6)
-        
-        q_init = np.zeros(19)
-        q_init[7] = 1
-        self.centrl_pd_ctrl = mim_control_cpp.CentroidalPDController()
-        self.centrl_pd_ctrl.initialize(2.5, np.diag(self.robot.mass(q_init)[3:6, 3:6]))
+        #________ map to sensors ________#
 
-        self.force_qp = mim_control_cpp.CentroidalForceQPController()
-        self.force_qp.initialize(4, mu, np.array([5e5, 5e5, 5e5, 1e6, 1e6, 1e6]))
-                
-        root_name = 'universe'
-        endeff_names = ['FL_ANKLE', 'FR_ANKLE', 'HL_ANKLE', 'HR_ANKLE']
-        self.imp_ctrls = [mim_control_cpp.ImpedanceController() for eff_name in endeff_names]
-        for i, c in enumerate(self.imp_ctrls):
-            c.initialize(self.robot.model, root_name, endeff_names[i])
-        
-        self.kc = np.array(kc)
-        self.dc = np.array(dc)
-        self.kb = np.array(kb)
-        self.db = np.array(db)
-                
         self.joint_positions = head.get_sensor('joint_positions')
         self.joint_velocities = head.get_sensor('joint_velocities')
         self.slider_positions = head.get_sensor('slider_positions')
         self.imu_gyroscope = head.get_sensor('imu_gyroscope')
+        self.imu_accelerometer = head.get_sensor('imu_accelerometer')
 
-    def set_k(self, kp, kd):
-        self.kp = 4 * [kp, kp, kp, 0, 0, 0]
-        self.kd = 4 * [kd, kd, kd, 0, 0, 0]
+
+    def map_sliders(self, sliders):
+        sliders_out = np.zeros(12)
+        slider_A = sliders[0]
+        slider_B = sliders[1]
+        for i in range(4):
+            sliders_out[3 * i + 0] = slider_A
+            sliders_out[3 * i + 1] = slider_B
+            sliders_out[3 * i + 2] = 2. * (1. - slider_B)
+            if i >= 2:
+                sliders_out[3 * i + 1] *= -1
+                sliders_out[3 * i + 2] *= -1
+        # Swap the hip direction.
+        sliders_out[3] *= -1
+        sliders_out[9] *= -1
+        return sliders_out
 
     def warmup(self, thread):
-        thread.vicon.bias_position(self.vicon_name)
-        self.zero_sliders = self.slider_positions.copy()
+        self.zero_pos = self.map_sliders(self.slider_positions)
+        thread.vicon.bias_position()
+
+    def run(self, thread):
+        #________ read vicon, encoders and imu ________#
+        self.q_sim[:7], self.v_sim[:6] = self.get_base(thread)
+        self.q_sim[7:] = self.joint_positions.copy()
+        self.v_sim[6:] = self.joint_velocities.copy()
+        self.x_sim[:self.pin_robot.nq] = self.q_sim
+        self.x_sim[self.pin_robot.nq:] = self.v_sim
+        self.sim_imu_linacc[:] = self.imu_accelerometer.copy()
+        self.sim_imu_angvel[:] = self.imu_gyroscope.copy()  
+
+        #________ Compute updated estimate from EKF ________#
+        self.estimator.run(self.c_est, self.sim_imu_linacc, self.sim_imu_angvel, 
+                           self.q_sim[7:], self.v_sim[6:])
+        self.estimator.get_states(self.q_est, self.v_est)
+        for i,n in enumerate(self.contact_names):
+            self.f_est[i,:] = self.estimator.get_force(n)
+        self.c_est = self.estimator.get_detected_contact()
+        
+        self.x_est[:self.pin_robot.nq] = self.q_est
+        self.x_est[self.pin_robot.nq:] = self.v_est
+
+        #________ Run Actual Controller ________#
+        self.des_position = self.scale * (
+            self.map_sliders(self.slider_positions) - self.zero_pos)
+
+        self.tau = self.Kp * (self.des_position - self.joint_positions) - self.Kd * self.joint_velocities
+        thread.head.set_control('ctrl_joint_torques', self.tau)
+
+
+
+class IterativeLinearQuadraticController:
+    def __init__(self, head, vicon_name, path, experiment_name="ilqg"):
+        """ 
+        args:
+            path: path to files where iLQR Solution is stored  
+        """
+        self.robot = Solo12Robot()
+        self.robot_config = Solo12Config() 
+        self.pin_robot = self.robot_config.buildRobotWrapper()
+        self.vicon_name = vicon_name
+        self.contact_names = []
+        leg = ["FL", "FR", "HL", "HR"]
+        for li in leg:
+            self.contact_names +=[li+"_ANKLE"]
+        
+        self.t = 0 
+        self.d = 0 
+        #________ Data Logs ________#
+        self.tau = np.zeros(self.pin_robot.nv)
+        self.q_sim = np.zeros(self.pin_robot.nq)
+        self.v_sim = np.zeros(self.pin_robot.nv)
+        self.q_est = np.zeros(self.pin_robot.nq)
+        self.v_est = np.zeros(self.pin_robot.nv)
+        self.x_sim = np.zeros(self.pin_robot.nq+ self.pin_robot.nv)
+        self.x_est = np.zeros(self.pin_robot.nq+ self.pin_robot.nv)
+        self.f_sim = np.zeros([4,3])
+        self.f_est = np.zeros([4,3])
+        self.c_sim = np.zeros(4)
+        self.c_est = np.zeros(4)    
+        # 
+        self.sim_imu_linacc = np.zeros(3)
+        self.sim_imu_angvel = np.zeros(3) 
+    
+        #________ parse the plan ________#  
+
+        self.path = path 
+        self.xs = np.load(self.path+'_xs.npy')
+        self.us = np.load(self.path+'_us.npy')
+        self.feedback = np.load(self.path+'_K.npy')
+        self.q0 = self.xs[0][:self.pin_robot.nq]
+        self.v0 = self.xs[0][self.pin_robot.nq:]
+    
+        
+        
+        #________ initialze controller ________#
+
+        self.gaits = control_problem_solo12.Solo12Gaits(self.pin_robot , self.contact_names)
+        self.contact_ids = self.gaits.contact_ids # will need this later 
+        self.optModels, _ = self.gaits.createBalanceProblem(problemConfig)
+        self.cntrl = controllers.DDPController(self.optModels,  self.xs ,self.us, self.feedback)
+
+        #________ initialze estimator ________#
+
+        estimator_settings = RobotStateEstimatorSettings()
+        estimator_settings.is_imu_frame = False
+        estimator_settings.pinocchio_model = self.pin_robot.model
+        estimator_settings.imu_in_base = pin.SE3(self.robot.rot_base_to_imu.T, self.robot.r_base_to_imu)
+        estimator_settings.end_effector_frame_names = (self.robot_config.end_effector_names)
+        estimator_settings.urdf_path = self.robot_config.urdf_path
+        robot_weight_per_ee = self.robot_config.mass * 9.81 / 4
+        estimator_settings.force_threshold_up = 0.8 * robot_weight_per_ee
+        estimator_settings.force_threshold_down = 0.2 * robot_weight_per_ee
+        self.estimator = RobotStateEstimator()
+        self.estimator.initialize(estimator_settings)
+        self.estimator.set_initial_state(self.q0, self.v0)
+
+        #________ initialze data logger ________#
+
+        # self.abs_path = abs_path = os.path.abspath("../log_files")
+        # self.exp_name = experiment_name
+        # self.logger_file_name = str(abs_path+"/"+self.exp_name+"_"+deepcopy(time.strftime("%Y_%m_%d_%H_%M_%S")) + ".mds")
+        # self.logger = DataLogger(self.logger_file_name)
+        # # Input the data fields.
+        # self.id_time = self.logger.add_field("sim_time", 1)
+        # self.sim_q = self.logger.add_field("sim_q", self.pin_robot.nq)
+        # self.sim_v = self.logger.add_field("sim_v", self.pin_robot.nv)
+        # self.est_q = self.logger.add_field("est_q", self.pin_robot.nq)
+        # self.est_v = self.logger.add_field("est_v", self.pin_robot.nv)
+        # self.sim_imu_linacc = self.logger.add_field("sim_imu_linacc", 3)
+        # self.sim_imu_angvel = self.logger.add_field("sim_imu_angvel", 3)
+        # self.est_imu_linacc = self.logger.add_field("est_imu_linacc", 3)
+        # self.est_imu_angvel = self.logger.add_field("est_imu_angvel", 3)
+        # self.sim_forces = {}
+        # self.est_forces = {}
+        # self.sim_contacts = {}
+        # self.est_contacts = {}
+        # for ee in estimator_settings.end_effector_frame_names:
+        #     self.sim_forces[ee] = self.logger.add_field("sim_" + ee + "_force", 3)
+        #     self.est_forces[ee] = self.logger.add_field("est_" + ee + "_force", 3)
+        #     self.sim_contacts[ee] = self.logger.add_field("sim_" + ee + "_contact", 3)
+        #     self.est_contacts[ee] = self.logger.add_field("est_" + ee + "_contact", 3)
+        # self.logger.init_file()
+
+        #________ map to sensors ________#
+
+        self.joint_positions = head.get_sensor('joint_positions')
+        self.joint_velocities = head.get_sensor('joint_velocities')
+        self.slider_positions = head.get_sensor('slider_positions')
+        self.imu_gyroscope = head.get_sensor('imu_gyroscope')
+        self.imu_accelerometer = head.get_sensor('imu_accelerometer')
+
+    def warmup(self, thread):
+        # thread.vicon.bias_position(self.vicon_name)
+        thread.vicon.bias_position()
 
     def get_base(self, thread):
         base_pos, base_vel = thread.vicon.get_state(self.vicon_name)
@@ -76,52 +245,48 @@ class IterativeLinearQuadraticController:
         return base_pos, base_vel
     
     def run(self, thread):
-        base_pos, base_vel = self.get_base(thread)
+        #________ read vicon, encoders and imu ________#
+        self.q_sim[:7], self.v_sim[:6] = self.get_base(thread)
+        self.q_sim[7:] = self.joint_positions.copy()
+        self.v_sim[6:] = self.joint_velocities.copy()
+        self.x_sim[:self.pin_robot.nq] = self.q_sim
+        self.x_sim[self.pin_robot.nq:] = self.v_sim
+        self.sim_imu_linacc[:] = self.imu_accelerometer.copy()
+        self.sim_imu_angvel[:] = self.imu_gyroscope.copy()  
 
-        self.q = np.hstack([base_pos, self.joint_positions])
-        self.dq = np.hstack([base_vel, self.joint_velocities])
+        #________ Compute updated estimate from EKF ________#
+        self.estimator.run(self.c_est, self.sim_imu_linacc, self.sim_imu_angvel, 
+                           self.q_sim[7:], self.v_sim[6:])
+        self.estimator.get_states(self.q_est, self.v_est)
+        for i,n in enumerate(self.contact_names):
+            self.f_est[i,:] = self.estimator.get_force(n)
+        self.c_est = self.estimator.get_detected_contact()
+        
+        self.x_est[:self.pin_robot.nq] = self.q_est
+        self.x_est[self.pin_robot.nq:] = self.v_est
+        #________ Compute Control Based on EKF ________#
+        self.tau[6:] = self.cntrl(self.t, self.d, self.x_est)
 
-        self.w_com[:] = 0
-        
-        self.centrl_pd_ctrl.run(
-            self.kc, self.dc, self.kb, self.db,
-            self.q[:3], self.x_com, self.dq[:3], self.xd_com,
-            self.q[3:7], self.x_ori, self.dq[3:6], self.x_angvel
-        )
-        
-        self.w_com[2] = 9.81 * Solo12Config.mass
-        self.w_com += self.centrl_pd_ctrl.get_wrench()
-        
-        if hasattr(self, 'update_w_com'):
-            self.update_w_com(thread)
-        
-        # distrubuting forces to the active end effectors
-        pin_robot = self.robot
-        pin_robot.framesForwardKinematics(self.q)
-        com = self.com = pin_robot.com(self.q)
-        rel_eff = np.array([
-            pin_robot.data.oMf[i].translation - com for i in Solo12Config.end_eff_ids
-        ]).reshape(-1)
-                
-        ext_cnt_array = [1., 1., 1., 1.]
-        self.force_qp.run(self.w_com, rel_eff, ext_cnt_array)
-        self.F = self.force_qp.get_forces()
-        
-        if hasattr(self, 'update_F'):
-            self.update_F(thread)
-        
-        # passing forces to the impedance controller
-        self.tau = np.zeros(18)
-        for i, c in enumerate(self.imp_ctrls):
-            c.run(self.q, self.dq,
-                 np.array(self.kp[6*i:6*(i+1)]),
-                 np.array(self.kd[6*i:6*(i+1)]),
-                 1.,
-                 pin.SE3(np.eye(3), np.array(self.x_des[3*i:3*(i+1)])),
-                 pin.Motion(self.xd_des[3*i:3*(i+1)], np.zeros(3)),
-                 pin.Force(self.F[3*i:3*(i+1)], np.zeros(3))
-             )
+        #________ Increment Counter ________# 
+        self.d += 0.1 
+        if (self.d - 1.)**2 <= 1.e-8:
+            self.d = 0. 
+            self.t += 1 
 
-            self.tau += c.get_torques()
-                
-        head.set_control('ctrl_joint_torques', self.tau[6:])
+        #________ Send Control Command ________#                
+        thread.head.set_control('ctrl_joint_torques', self.tau[6:])
+
+    # def log_data(self):
+    #     self.logger.begin_timestep()
+    #     self.logger.log(self.id_time, )
+    #     self.logger.log(self.sim_q, )
+    #     self.logger.log(self.sim_v, )
+    #     self.logger.log(self.est_q, )
+    #     self.logger.log(self.est_v, )
+    #     self.logger.log(self.sim_imu_linacc, )
+    #     self.logger.log(self.sim_imu_angvel, )
+    #     self.logger.log(self.est_imu_linacc, )
+    #     self.logger.log(self.est_imu_angvel, )
+    #     self.logger.log()
+    #     self.logger.log()
+    #     self.logger.end_timestep()
