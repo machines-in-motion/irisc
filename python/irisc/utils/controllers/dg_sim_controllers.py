@@ -53,10 +53,10 @@ class SliderPDController:
         self.v_est = np.zeros(self.pin_robot.nv)
         self.x_sim = np.zeros(self.pin_robot.nq+ self.pin_robot.nv)
         self.x_est = np.zeros(self.pin_robot.nq+ self.pin_robot.nv)
-        self.f_sim = np.zeros([4,3])
-        self.f_est = np.zeros([4,3])
-        self.c_sim = np.zeros(4)
-        self.c_est = np.zeros(4)    
+        self.f_sim = np.zeros([self.robot.nb_ee,6])
+        self.f_est = np.zeros([self.robot.nb_ee,6])
+        self.c_sim = [True, True, True, True]
+        self.c_est = [True, True, True, True]    
         # 
         self.sim_imu_linacc = np.zeros(3)
         self.sim_imu_angvel = np.zeros(3) 
@@ -83,6 +83,33 @@ class SliderPDController:
         self.slider_positions = head.get_sensor('slider_positions')
         self.imu_gyroscope = head.get_sensor('imu_gyroscope')
         self.imu_accelerometer = head.get_sensor('imu_accelerometer')
+
+
+        #________ initialze data logger ________#
+
+        # self.abs_path = abs_path = os.path.abspath("../log_files")
+        # self.exp_name = experiment_name
+        # self.logger_file_name = str(abs_path+"/"+self.exp_name+"_"+deepcopy(time.strftime("%Y_%m_%d_%H_%M_%S")) + ".mds")
+        # self.logger = DataLogger(self.logger_file_name)
+        # # Input the data fields.
+        # self.id_time = self.logger.add_field("sim_time", 1)
+        # self.sim_q = self.logger.add_field("sim_q", self.pin_robot.nq)
+        # self.sim_v = self.logger.add_field("sim_v", self.pin_robot.nv)
+        # self.est_q = self.logger.add_field("est_q", self.pin_robot.nq)
+        # self.est_v = self.logger.add_field("est_v", self.pin_robot.nv)
+        # self.sim_imu_linacc = self.logger.add_field("sim_imu_linacc", 3)
+        # self.sim_imu_angvel = self.logger.add_field("sim_imu_angvel", 3)
+        # self.est_imu_linacc = self.logger.add_field("est_imu_linacc", 3)
+        # self.est_imu_angvel = self.logger.add_field("est_imu_angvel", 3)
+        # self.sim_forces = {}
+        # self.est_forces = {}
+        # self.sim_contacts = {}
+        # self.est_contacts = {}
+        # for ee in estimator_settings.end_effector_frame_names:
+        #     self.sim_forces[ee] = self.logger.add_field("sim_" + ee + "_force", 3)
+        #     self.est_forces[ee] = self.logger.add_field("est_" + ee + "_force", 3)
+        #     self.sim_contacts[ee] = self.logger.add_field("sim_" + ee + "_contact", 3)
+        #     self.est_contacts[ee] = self.logger.add_field("est_" + ee + "_contact", 3)
 
 
     def map_sliders(self, sliders):
@@ -123,9 +150,9 @@ class SliderPDController:
         #________ Compute updated estimate from EKF ________#
         self.estimator.run(self.c_est, self.sim_imu_linacc, self.sim_imu_angvel, 
                            self.q_sim[7:], self.v_sim[6:])
-        self.estimator.get_states(self.q_est, self.v_est)
+        self.estimator.get_state(self.q_est, self.v_est)
         for i,n in enumerate(self.contact_names):
-            self.f_est[i,:] = self.estimator.get_force(n)
+            self.f_est[i,:3] = self.estimator.get_force(n)
         self.c_est = self.estimator.get_detected_contact()
         
         self.x_est[:self.pin_robot.nq] = self.q_est

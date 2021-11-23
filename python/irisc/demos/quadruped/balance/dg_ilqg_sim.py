@@ -1,18 +1,19 @@
 """ simulate all controllers once this is executed """
 
 import numpy as np 
-from dynamic_graph_head import ThreadHead, SimHead, SimVicon, HoldPDController
+from dynamic_graph_head import ThreadHead, SimHead, SimVicon, HoldPDController, SimForcePlate
 import numpy as np
 import matplotlib.pylab as plt
 from bullet_utils.env import BulletEnvWithGround
 from robot_properties_solo.solo12wrapper import Solo12Robot, Solo12Config
-
+import pybullet as p 
 
 import os, sys, time
 src_path = os.path.abspath('../../../')
 sys.path.append(src_path)
 
 from utils.controllers import dg_sim_controllers
+
 
 if __name__ == "__main__":
     #________ Create Simulation Environment ________#
@@ -21,7 +22,8 @@ if __name__ == "__main__":
     bullet_env.add_robot(robot) 
     pin_robot = Solo12Config.buildRobotWrapper() 
 
-
+    p.resetDebugVisualizerCamera(1.6, 50, -35, (0.0, 0.0, 0.0))
+    p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
     #________ Initialze Thread ________#
     head = SimHead(robot, vicon_name='solo12')
     thread_head = ThreadHead(
@@ -29,7 +31,8 @@ if __name__ == "__main__":
         HoldPDController(head, 3., 0.05, True), # Safety controllers.
         head, # Heads to read / write from.
         [     # Utils.
-            ('vicon', SimVicon(['solo12/solo12']))
+            ('vicon', SimVicon(['solo12/solo12'])),
+            ('force_plate', SimForcePlate(robot))
         ], 
         bullet_env # Environment to step.
     )
@@ -43,6 +46,7 @@ if __name__ == "__main__":
     v0 = xs[0][pin_robot.nq:]
 
     slider_pd_controller = dg_sim_controllers.SliderPDController(head, 'solo12/solo12', robot, 3., 0.05, q0, v0) 
+    
 
     
     thread_head.head.reset_state(q0, v0)
