@@ -26,7 +26,7 @@ from mim_data_utils import DataLogger, DataReader
 
 
 class SliderPDController:
-    def __init__(self, head, vicon_name, robot, Kp, Kd, q0, v0):
+    def __init__(self, head, vicon_name, robot, Kp, Kd, q0, v0, log_path=None):
         #________ PD Parameters ________#
         self.head = head
         self.scale = np.pi
@@ -34,6 +34,8 @@ class SliderPDController:
         self.Kd = Kd
         self.q0 = q0 
         self.v0 = v0
+        self.d = 0. 
+        self.t = 0 
 
         #________ Robot Parameters ________#
         self.robot = robot
@@ -46,7 +48,7 @@ class SliderPDController:
             self.contact_names +=[li+"_ANKLE"]
 
         #________ Data Logs ________#
-        self.tau = np.zeros(self.pin_robot.nv)
+        self.tau = np.zeros(self.pin_robot.nv-6)
         self.q_sim = np.zeros(self.pin_robot.nq)
         self.v_sim = np.zeros(self.pin_robot.nv)
         self.q_est = np.zeros(self.pin_robot.nq)
@@ -57,9 +59,13 @@ class SliderPDController:
         self.f_est = np.zeros([self.robot.nb_ee,6])
         self.c_sim = [True, True, True, True]
         self.c_est = [True, True, True, True]    
+        self.u_applied = np.zeros(self.pin_robot.nv-6)
+        self.u_observed = np.zeros(self.pin_robot.nv-6)
         # 
-        self.sim_imu_linacc = np.zeros(3)
-        self.sim_imu_angvel = np.zeros(3) 
+        self.imu_linacc_sim = np.zeros(3)
+        self.imu_angvel_sim = np.zeros(3) 
+        self.imu_linacc_est = np.zeros(3)
+        self.imu_angvel_est = np.zeros(3) 
     
         #________ initialze estimator ________#
 
@@ -83,34 +89,59 @@ class SliderPDController:
         self.slider_positions = head.get_sensor('slider_positions')
         self.imu_gyroscope = head.get_sensor('imu_gyroscope')
         self.imu_accelerometer = head.get_sensor('imu_accelerometer')
+        # self.observed_torques = head.get_sensor('joint_torques')
 
 
         #________ initialze data logger ________#
+        self.abs_log_path = None 
+        if log_path is not None:
+            self.abs_log_path = log_path 
+            self.logger_file_name = str(self.abs_log_path+"_sliderpd_"
+                        +deepcopy(time.strftime("%Y_%m_%d_%H_%M_%S")) + ".mds")
+            self.logger = DataLogger(self.logger_file_name)
+            # Input the data fields.
+            self.id_time = self.logger.add_field("sim_time", 1)
+            self.sim_q = self.logger.add_field("sim_q", self.pin_robot.nq)
+            self.sim_v = self.logger.add_field("sim_v", self.pin_robot.nv)
+            self.est_q = self.logger.add_field("est_q", self.pin_robot.nq)
+            self.est_v = self.logger.add_field("est_v", self.pin_robot.nv)
+            self.sim_imu_linacc = self.logger.add_field("sim_imu_linacc", 3)
+            self.sim_imu_angvel = self.logger.add_field("sim_imu_angvel", 3)
+            self.est_imu_linacc = self.logger.add_field("est_imu_linacc", 3)
+            self.est_imu_angvel = self.logger.add_field("est_imu_angvel", 3) 
+            self.applied_u = self.logger.add_field("applied_u", self.pin_robot.nv - 6)
+            self.observed_u = self.logger.add_field("observed_u", self.pin_robot.nv - 6)
+            self.sim_forces = {}
+            self.est_forces = {}
+            self.sim_contacts = {}
+            self.est_contacts = {}
+            for ee in self.robot.end_effector_names:
+                self.sim_forces[ee] = self.logger.add_field("sim_" + ee + "_force", 6)
+                self.est_forces[ee] = self.logger.add_field("est_" + ee + "_force", 6)
+                self.sim_contacts[ee] = self.logger.add_field("sim_" + ee + "_contact", 1)
+                self.est_contacts[ee] = self.logger.add_field("est_" + ee + "_contact", 1)
 
-        # self.abs_path = abs_path = os.path.abspath("../log_files")
-        # self.exp_name = experiment_name
-        # self.logger_file_name = str(abs_path+"/"+self.exp_name+"_"+deepcopy(time.strftime("%Y_%m_%d_%H_%M_%S")) + ".mds")
-        # self.logger = DataLogger(self.logger_file_name)
-        # # Input the data fields.
-        # self.id_time = self.logger.add_field("sim_time", 1)
-        # self.sim_q = self.logger.add_field("sim_q", self.pin_robot.nq)
-        # self.sim_v = self.logger.add_field("sim_v", self.pin_robot.nv)
-        # self.est_q = self.logger.add_field("est_q", self.pin_robot.nq)
-        # self.est_v = self.logger.add_field("est_v", self.pin_robot.nv)
-        # self.sim_imu_linacc = self.logger.add_field("sim_imu_linacc", 3)
-        # self.sim_imu_angvel = self.logger.add_field("sim_imu_angvel", 3)
-        # self.est_imu_linacc = self.logger.add_field("est_imu_linacc", 3)
-        # self.est_imu_angvel = self.logger.add_field("est_imu_angvel", 3)
-        # self.sim_forces = {}
-        # self.est_forces = {}
-        # self.sim_contacts = {}
-        # self.est_contacts = {}
-        # for ee in estimator_settings.end_effector_frame_names:
-        #     self.sim_forces[ee] = self.logger.add_field("sim_" + ee + "_force", 3)
-        #     self.est_forces[ee] = self.logger.add_field("est_" + ee + "_force", 3)
-        #     self.sim_contacts[ee] = self.logger.add_field("sim_" + ee + "_contact", 3)
-        #     self.est_contacts[ee] = self.logger.add_field("est_" + ee + "_contact", 3)
+            self.logger.init_file()
 
+    def log_data(self): 
+        self.logger.begin_timestep() 
+        self.logger.log(self.id_time, .01*self.t + .001*self.d)
+        self.logger.log(self.sim_q, self.q_sim)
+        self.logger.log(self.sim_v, self.v_sim)
+        self.logger.log(self.est_q, self.q_est)
+        self.logger.log(self.est_v, self.v_est)
+        self.logger.log(self.sim_imu_linacc, self.imu_linacc_sim)
+        self.logger.log(self.sim_imu_angvel, self.imu_angvel_sim)
+        self.logger.log(self.est_imu_linacc, self.imu_linacc_est)
+        self.logger.log(self.est_imu_angvel, self.imu_angvel_est)
+        self.logger.log(self.applied_u, self.u_applied)
+        self.logger.log(self.observed_u, self.u_observed)
+        for i, ee in enumerate(self.robot.end_effector_names):
+            self.logger.log(self.sim_forces[ee],self.f_sim[i])
+            self.logger.log(self.est_forces[ee],self.f_est[i])
+            self.logger.log(self.sim_contacts[ee], 1 if self.c_sim[i] else 0)
+            self.logger.log(self.est_contacts[ee], 1 if self.c_est[i] else 0)
+        self.logger.end_timestep()
 
     def map_sliders(self, sliders):
         sliders_out = np.zeros(12)
@@ -136,19 +167,27 @@ class SliderPDController:
         base_pos, base_vel = thread.vicon.get_state(self.vicon_name)
         base_vel[3:] = self.imu_gyroscope
         return base_pos, base_vel
+    
+    def read_forces(self, thread):
+        self.f_sim[:,:] = thread.force_plate.get_contact_force(self.robot)
+
+    def read_contact_status(self, thread): 
+        self.c_sim[:] = [True if cs>.5 else False for cs in thread.force_plate.get_contact_status(self.robot)]
+        
 
     def run(self, thread):
-        #________ read vicon, encoders and imu ________#
+        #________ read vicon, encoders, imu and force plate ________#
         self.q_sim[:7], self.v_sim[:6] = self.get_base(thread)
         self.q_sim[7:] = self.joint_positions.copy()
         self.v_sim[6:] = self.joint_velocities.copy()
         self.x_sim[:self.pin_robot.nq] = self.q_sim
         self.x_sim[self.pin_robot.nq:] = self.v_sim
-        self.sim_imu_linacc[:] = self.imu_accelerometer.copy()
-        self.sim_imu_angvel[:] = self.imu_gyroscope.copy()  
-
+        self.imu_linacc_sim[:] = self.imu_accelerometer.copy()
+        self.imu_angvel_sim[:] = self.imu_gyroscope.copy()  
+        self.read_forces(thread)
+        self.read_contact_status(thread)
         #________ Compute updated estimate from EKF ________#
-        self.estimator.run(self.c_est, self.sim_imu_linacc, self.sim_imu_angvel, 
+        self.estimator.run(self.c_est, self.imu_linacc_sim, self.imu_angvel_sim, 
                            self.q_sim[7:], self.v_sim[6:])
         self.estimator.get_state(self.q_est, self.v_est)
         for i,n in enumerate(self.contact_names):
@@ -162,7 +201,21 @@ class SliderPDController:
         self.des_position = self.scale * (
             self.map_sliders(self.slider_positions) - self.zero_pos)
 
-        self.tau = self.Kp * (self.des_position - self.joint_positions) - self.Kd * self.joint_velocities
+        self.tau[:] = self.Kp * (self.des_position - self.joint_positions) - self.Kd * self.joint_velocities
+        # for now assume perfect control, keep in mind this is not the case on the real robot 
+        self.u_applied[:] = self.tau[:]
+        self.u_observed[:] =self.tau[:] 
+
+        #________ Log Data ________# 
+        if self.abs_log_path is not None:
+            self.log_data()
+
+        #________ Increment Counter ________# 
+        self.d += 0.1 
+        if (self.d - 1.)**2 <= 1.e-8:
+            self.d = 0. 
+            self.t += 1 
+
         thread.head.set_control('ctrl_joint_torques', self.tau)
 
 
@@ -233,33 +286,6 @@ class IterativeLinearQuadraticController:
         self.estimator.initialize(estimator_settings)
         self.estimator.set_initial_state(self.q0, self.v0)
 
-        #________ initialze data logger ________#
-
-        # self.abs_path = abs_path = os.path.abspath("../log_files")
-        # self.exp_name = experiment_name
-        # self.logger_file_name = str(abs_path+"/"+self.exp_name+"_"+deepcopy(time.strftime("%Y_%m_%d_%H_%M_%S")) + ".mds")
-        # self.logger = DataLogger(self.logger_file_name)
-        # # Input the data fields.
-        # self.id_time = self.logger.add_field("sim_time", 1)
-        # self.sim_q = self.logger.add_field("sim_q", self.pin_robot.nq)
-        # self.sim_v = self.logger.add_field("sim_v", self.pin_robot.nv)
-        # self.est_q = self.logger.add_field("est_q", self.pin_robot.nq)
-        # self.est_v = self.logger.add_field("est_v", self.pin_robot.nv)
-        # self.sim_imu_linacc = self.logger.add_field("sim_imu_linacc", 3)
-        # self.sim_imu_angvel = self.logger.add_field("sim_imu_angvel", 3)
-        # self.est_imu_linacc = self.logger.add_field("est_imu_linacc", 3)
-        # self.est_imu_angvel = self.logger.add_field("est_imu_angvel", 3)
-        # self.sim_forces = {}
-        # self.est_forces = {}
-        # self.sim_contacts = {}
-        # self.est_contacts = {}
-        # for ee in estimator_settings.end_effector_frame_names:
-        #     self.sim_forces[ee] = self.logger.add_field("sim_" + ee + "_force", 3)
-        #     self.est_forces[ee] = self.logger.add_field("est_" + ee + "_force", 3)
-        #     self.sim_contacts[ee] = self.logger.add_field("sim_" + ee + "_contact", 3)
-        #     self.est_contacts[ee] = self.logger.add_field("est_" + ee + "_contact", 3)
-        # self.logger.init_file()
-
         #________ map to sensors ________#
 
         self.joint_positions = head.get_sensor('joint_positions')
@@ -308,18 +334,3 @@ class IterativeLinearQuadraticController:
 
         #________ Send Control Command ________#                
         thread.head.set_control('ctrl_joint_torques', self.tau[6:])
-
-    # def log_data(self):
-    #     self.logger.begin_timestep()
-    #     self.logger.log(self.id_time, )
-    #     self.logger.log(self.sim_q, )
-    #     self.logger.log(self.sim_v, )
-    #     self.logger.log(self.est_q, )
-    #     self.logger.log(self.est_v, )
-    #     self.logger.log(self.sim_imu_linacc, )
-    #     self.logger.log(self.sim_imu_angvel, )
-    #     self.logger.log(self.est_imu_linacc, )
-    #     self.logger.log(self.est_imu_angvel, )
-    #     self.logger.log()
-    #     self.logger.log()
-    #     self.logger.end_timestep()

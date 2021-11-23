@@ -32,7 +32,7 @@ if __name__ == "__main__":
         head, # Heads to read / write from.
         [     # Utils.
             ('vicon', SimVicon(['solo12/solo12'])),
-            ('force_plate', SimForcePlate(robot))
+            ('force_plate', SimForcePlate([robot]))
         ], 
         bullet_env # Environment to step.
     )
@@ -53,13 +53,13 @@ if __name__ == "__main__":
     thread_head.switch_controllers(slider_pd_controller)
 
 
-    thread_head.start_streaming()
-    thread_head.start_logging()
+    # thread_head.start_streaming()
+    # thread_head.start_logging()
 
     thread_head.sim_run(10000)
 
-    thread_head.stop_streaming()
-    thread_head.stop_logging()
+    # thread_head.stop_streaming()
+    # thread_head.stop_logging()
 
     # Plot timing information.
     thread_head.plot_timing()
