@@ -26,15 +26,17 @@ from mim_data_utils import DataLogger, DataReader
 
 
 class SliderPDController:
-    def __init__(self, head, vicon_name, Kp, Kd):
+    def __init__(self, head, vicon_name, robot, Kp, Kd, q0, v0):
         #________ PD Parameters ________#
         self.head = head
         self.scale = np.pi
         self.Kp = Kp
         self.Kd = Kd
+        self.q0 = q0 
+        self.v0 = v0
 
         #________ Robot Parameters ________#
-        self.robot = Solo12Robot()
+        self.robot = robot
         self.robot_config = Solo12Config() 
         self.pin_robot = self.robot_config.buildRobotWrapper()
         self.vicon_name = vicon_name
@@ -53,8 +55,8 @@ class SliderPDController:
         self.x_est = np.zeros(self.pin_robot.nq+ self.pin_robot.nv)
         self.f_sim = np.zeros([4,3])
         self.f_est = np.zeros([4,3])
-        self.c_sim = [True,True,True,True] # np.zeros(4)
-        self.c_est = [True,True,True,True] #np.zeros(4)    
+        self.c_sim = np.zeros(4)
+        self.c_est = np.zeros(4)    
         # 
         self.sim_imu_linacc = np.zeros(3)
         self.sim_imu_angvel = np.zeros(3) 
@@ -101,7 +103,12 @@ class SliderPDController:
 
     def warmup(self, thread):
         self.zero_pos = self.map_sliders(self.slider_positions)
-        thread.vicon.bias_position()
+        thread.vicon.bias_position(self.vicon_name)
+
+    def get_base(self, thread):
+        base_pos, base_vel = thread.vicon.get_state(self.vicon_name)
+        base_vel[3:] = self.imu_gyroscope
+        return base_pos, base_vel
 
     def run(self, thread):
         #________ read vicon, encoders and imu ________#
