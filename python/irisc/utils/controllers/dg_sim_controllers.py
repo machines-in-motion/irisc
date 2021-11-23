@@ -1,18 +1,11 @@
 """ sets up control loop in simulation with dg head stuff """
 
 import numpy as np
-import scipy.linalg as scl 
-import matplotlib.pylab as plt
 import os, sys, time 
 from copy import deepcopy
 from pathlib import Path
-# src_path = os.path.abspath('../../../')
-# sys.path.append(src_path)
 
-
-from bullet_utils.env import BulletEnvWithGround
 from robot_properties_solo.solo12wrapper import Solo12Robot, Solo12Config
-from dynamic_graph_head import ThreadHead, SimHead, SimVicon, HoldPDController
 import pinocchio as pin
 from utils.simulation import controllers 
 from demos.quadruped.utils import control_problem_solo12 
@@ -96,7 +89,7 @@ class SliderPDController:
         self.abs_log_path = None 
         if log_path is not None:
             self.abs_log_path = log_path 
-            self.logger_file_name = str(self.abs_log_path+"_sliderpd_"
+            self.logger_file_name = str(self.abs_log_path+"/sim_sliderpd_"
                         +deepcopy(time.strftime("%Y_%m_%d_%H_%M_%S")) + ".mds")
             self.logger = DataLogger(self.logger_file_name)
             # Input the data fields.
