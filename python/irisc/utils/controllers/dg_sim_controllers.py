@@ -50,8 +50,8 @@ class SliderPDController:
         self.x_est = np.zeros(self.pin_robot.nq+ self.pin_robot.nv)
         self.f_sim = np.zeros([self.robot.nb_ee,6])
         self.f_est = np.zeros([self.robot.nb_ee,6])
-        self.c_sim = [True, True, True, True]
-        self.c_est = [True, True, True, True]    
+        self.c_sim = np.zeros(self.robot.nb_ee)
+        self.c_est = np.zeros(self.robot.nb_ee)    
         self.u_applied = np.zeros(self.pin_robot.nv-6)
         self.u_observed = np.zeros(self.pin_robot.nv-6)
         # 
@@ -59,6 +59,8 @@ class SliderPDController:
         self.imu_angvel_sim = np.zeros(3) 
         self.imu_linacc_est = np.zeros(3)
         self.imu_angvel_est = np.zeros(3) 
+
+        self.contact_status_flags = [True,  True, True, True]
     
         #________ initialze estimator ________#
 
@@ -132,8 +134,8 @@ class SliderPDController:
         for i, ee in enumerate(self.robot.end_effector_names):
             self.logger.log(self.sim_forces[ee],self.f_sim[i])
             self.logger.log(self.est_forces[ee],self.f_est[i])
-            self.logger.log(self.sim_contacts[ee], 1 if self.c_sim[i] else 0)
-            self.logger.log(self.est_contacts[ee], 1 if self.c_est[i] else 0)
+            self.logger.log(self.sim_contacts[ee], self.c_sim[i])
+            self.logger.log(self.est_contacts[ee], self.c_est[i])
         self.logger.end_timestep()
 
     def map_sliders(self, sliders):
@@ -165,8 +167,8 @@ class SliderPDController:
         self.f_sim[:,:] = thread.force_plate.get_contact_force(self.robot)
 
     def read_contact_status(self, thread): 
-        self.c_sim[:] = [True if cs>.5 else False for cs in thread.force_plate.get_contact_status(self.robot)]
-        
+        self.c_sim[:] = thread.force_plate.get_contact_status(self.robot)
+        self.contact_status_flags[:] = [True if ci > 0.7 else False for ci in self.c_sim]
 
     def run(self, thread):
         #________ read vicon, encoders, imu and force plate ________#
@@ -180,15 +182,21 @@ class SliderPDController:
         self.read_forces(thread)
         self.read_contact_status(thread)
         #________ Compute updated estimate from EKF ________#
-        self.estimator.run(self.c_est, self.imu_linacc_sim, self.imu_angvel_sim, 
+        self.estimator.run(self.contact_status_flags, self.imu_linacc_sim, self.imu_angvel_sim, 
                            self.q_sim[7:], self.v_sim[6:])
         self.estimator.get_state(self.q_est, self.v_est)
         for i,n in enumerate(self.contact_names):
             self.f_est[i,:3] = self.estimator.get_force(n)
-        self.c_est = self.estimator.get_detected_contact()
-        
+        c_est = self.estimator.get_detected_contact()
+        self.c_est[:] = np.array([1 if ci else 0 for ci in c_est])
         self.x_est[:self.pin_robot.nq] = self.q_est
         self.x_est[self.pin_robot.nq:] = self.v_est
+
+        # if self.t%100 == 0.: 
+        #     print(" simulated contact status \n", self.contact_status_flags)
+            # print(" estimated contact status \n", c_est[0], c_est[1]) 
+        #     print(" numeric simulated contact status \n", self.c_sim)
+        #     print(" numeric estimated contact status \n", self.c_est) 
 
         #________ Run Actual Controller ________#
         self.des_position = self.scale * (

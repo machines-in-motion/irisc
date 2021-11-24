@@ -44,7 +44,8 @@ if __name__ == "__main__":
 
     q0 = xs[0][:pin_robot.nq]
     v0 = xs[0][pin_robot.nq:]
-    log_path = os.path.abspath('../log_files')
+    # log_path = os.path.abspath('../log_files')
+    log_path = None 
     print("logging path is ", log_path )
     slider_pd_controller = dg_sim_controllers.SliderPDController(head, 'solo12/solo12', 
                                     robot, 3., 0.05, q0, v0, log_path) 
@@ -54,7 +55,16 @@ if __name__ == "__main__":
     thread_head.head.reset_state(q0, v0)
     thread_head.switch_controllers(slider_pd_controller)
 
+    if log_path is None:
+        thread_head.start_streaming()
+        thread_head.start_logging()
+        
     thread_head.sim_run(10000)
-    slider_pd_controller.logger.close_file()
+
+    if log_path is None:
+        thread_head.stop_streaming()
+        thread_head.stop_logging()
+    else:
+        slider_pd_controller.logger.close_file()
     # Plot timing information.
-    thread_head.plot_timing()
+    # thread_head.plot_timing()
