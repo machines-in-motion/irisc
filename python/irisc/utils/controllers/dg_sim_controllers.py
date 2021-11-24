@@ -36,9 +36,7 @@ class SliderPDController:
         self.pin_robot = self.robot_config.buildRobotWrapper()
         self.vicon_name = vicon_name
         self.contact_names = []
-        leg = ["FL", "FR", "HL", "HR"]
-        for li in leg:
-            self.contact_names +=[li+"_ANKLE"]
+        self.contact_names = ["FL_ANKLE", "FR_ANKLE", "HL_ANKLE", "HR_ANKLE"]
 
         #________ Data Logs ________#
         self.tau = np.zeros(self.pin_robot.nv-6)
