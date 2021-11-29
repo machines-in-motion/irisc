@@ -182,20 +182,12 @@ class SliderPDController:
         self.estimator.run(self.imu_linacc_sim, self.imu_angvel_sim, 
                            self.q_sim[7:], self.v_sim[6:], self.tau)
         self.estimator.get_state(self.q_est, self.v_est)
-        
         c_est = self.estimator.get_detected_contact()
-
+        self.c_est[:] = np.array([1 if ci else 0 for ci in c_est])
         for i,n in enumerate(self.contact_names):
             self.f_est[i,:3] = self.estimator.get_force(n)
-        self.c_est[:] = np.array([1 if ci else 0 for ci in c_est])
         self.x_est[:self.pin_robot.nq] = self.q_est
         self.x_est[self.pin_robot.nq:] = self.v_est
-
-        # if self.t%100 == 0.: 
-        #     print(" simulated contact status \n", self.contact_status_flags)
-            # print(" estimated contact status \n", c_est[0], c_est[1]) 
-        #     print(" numeric simulated contact status \n", self.c_sim)
-        #     print(" numeric estimated contact status \n", self.c_est) 
 
         #________ Run Actual Controller ________#
         self.des_position = self.scale * (
