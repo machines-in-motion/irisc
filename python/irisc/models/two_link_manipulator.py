@@ -1,4 +1,8 @@
-""" this model is the same one as section 8.1.1 in the book titled: Modern Robotics by Lynch """
+""" this model is the same one as section 8.1.1 in the book titled: Modern Robotics by Lynch 
+
+we will start with no contact force, just moving the manipulator 
+then we will figure out the rest 
+"""
 
 
 import numpy as np 
@@ -59,6 +63,7 @@ class TwoLinkManipulator:
            (self.m1 + self.m2)*self.l1*self.g*np.cos(x[0]) + self.m2*self.g*self.l2*np.cos(x[0]+x[1]), 
            self.m2*self.g*self.l2*np.cos(x[0]+x[1]) 
         ]) 
+        return f 
 
     def inv_mass_matrix(self, x):
         m = self.mass_matrix(x)
@@ -73,14 +78,22 @@ class TwoLinkManipulator:
     def nle(self, x):
         return self.coriolis_forces(x) + self.gravity_vector(x)
 
+    def ee_jacobian(self, x):
+        J = np.zeros((2,2))
+        J[0,0] = - self.l1 * np.sin(x[0]) - self.l2 * np.sin(x[0]+ x[1])
+        J[0,1] = - self.l2 * np.sin(x[0]+ x[1])
+        J[1,0] = self.l1 * np.cos(x[0]) + self.l2 * np.cos(x[0]+ x[1])
+        J[1,1] = self.l2 * np.cos(x[0]+ x[1])
+        return J 
+
     def nonlinear_dynamics(self, x, u):
         acc = self.inv_mass_matrix(x).dot(u - self.nle(x))
         return acc
 
     def derivatives(self, x, u):
         """returns df/dx evaluated at x,u """
-        dfdx = np.zeros([2,4])
-        dfdu = np.zeros([2,2])
+        dfdx = np.zeros([self.nv ,self.ndx])
+        dfdu = np.zeros([self.nv ,self.nu])
 
         dx = np.zeros(self.ndx)
         for i in range(self.ndx):
@@ -110,23 +123,27 @@ class TwoLinkManipulator:
 
 
 class DifferentialActionTwoLinkManipulator(crocoddyl.DifferentialActionModelAbstract):
-    def __init__(self, t, T, isTerminal=False):
+    def __init__(self, xref=None, isTerminal=False):
         self.dynamics = TwoLinkManipulator()
         state =  crocoddyl.StateVector(self.dynamics.nx)
         crocoddyl.DifferentialActionModelAbstract.__init__(self, state, self.dynamics.nu, self.dynamics.ndx)
         self.isTerminal = isTerminal
-        self.z_des = 2.
-        self.scale = .5/T  
+        if xref is None:
+            self.xref = np.zeros(self.state.nx)
+        else:
+            self.xref = xref 
         #
-        self.t = t  # will be used to scale costs 
-        self.T = T  # horizon
+        self.w1 = np.eye(self.state.ndx)
+        self.w2 = np.eye(self.nu)
+        self.w3 = np.eye(self.state.ndx)
        
     def _running_cost(self, t, x, u): 
-        cost = 0. 
+        cost = .5*(x-self.xref).T.dot(self.w1).dot(x-self.xref)
+        cost += .5*u.T.dot(self.w2).dot(u)
         return cost 
     
     def _terminal_cost(self, x):
-        cost = 0. 
+        cost = .5*(x-self.xref).T.dot(self.w3).dot(x-self.xref)
         return cost 
 
     def calc(self, data, x, u=None): 
@@ -154,9 +171,14 @@ class DifferentialActionTwoLinkManipulator(crocoddyl.DifferentialActionModelAbst
         Lxu = np.zeros([self.state.ndx, self.nu])
         # COST DERIVATIVES 
         if self.isTerminal:
-            pass 
+            Lx[:] =  self.w3.dot(x-self.xref)
+            Lxx[:,:] = self.w3.copy() 
         else:
-            pass 
+            Lx[:] =  self.w1.dot(x-self.xref)
+            Lu[:] =  self.w2.dot(u)
+            Lxx[:,:] = self.w1.copy()
+            Luu[:,:] = self.w2.copy()
+
             # dynamics derivatives 
             Fx[:,:], Fu[:,:] = self.dynamics.derivatives(x,u)
         # COPY TO DATA 
@@ -173,7 +195,7 @@ class DifferentialActionTwoLinkManipulator(crocoddyl.DifferentialActionModelAbst
 
 if __name__ =="__main__":
     print(" Testing Penumatic Hopper with DDP ".center(LINE_WIDTH, '#'))
-    x0 = np.array([.5, 0., 0., 0.])
+    x0 = np.array([0., 0., 0., 0.])
     MAX_ITER = 1000
     T = 300 
     dt = 1.e-2
