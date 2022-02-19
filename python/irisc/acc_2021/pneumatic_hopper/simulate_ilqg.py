@@ -4,13 +4,13 @@ import os,sys
 
 src_path = os.path.abspath('../../') 
 sys.path.append(src_path)
-from utils.action_models import pneumatic_hopper
-from utils.problems import pneumatic_hopper_problem
-from utils.uncertainty import problem_uncertainty
+from models import pneumatic_hopper
+import pneumatic_hopper_problem
+from utils import problem_uncertainty
 
 
-from utils.uncertainty import measurement_models, process_models, problem_uncertainty, estimators
-from utils.simulation import controllers, simulator
+from utils import measurement_models, process_models, problem_uncertainty, estimators
+from utils import controllers, simulator
 
 import matplotlib.pyplot as plt 
 from config_pneumatic_hopper import *

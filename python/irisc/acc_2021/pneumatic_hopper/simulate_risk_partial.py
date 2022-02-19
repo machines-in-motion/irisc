@@ -10,11 +10,11 @@ from numpy.core.arrayprint import set_string_function
 src_path = os.path.abspath('../../') 
 sys.path.append(src_path)
 print(src_path)
-from utils.action_models import pneumatic_hopper
-from utils.problems import pneumatic_hopper_problem
+from models import pneumatic_hopper
+import pneumatic_hopper_problem
 
-from utils.uncertainty import estimators
-from utils.simulation import controllers, simulator
+from utils import estimators
+from utils import controllers, simulator
 
 import matplotlib.pyplot as plt 
 from config_pneumatic_hopper import *
@@ -24,6 +24,8 @@ LINE_WIDTH = 100
 
 SAVE_SOLN = True 
 PLOT_SOLN = True 
+
+sensitivity = -.01
 if __name__ == "__main__":
     if sensitivity < 0.:
         solution_path = "solutions/risk_averse/iRiSC" 
@@ -78,4 +80,5 @@ if __name__ == "__main__":
     force_time_array = 1.e-3*np.arange(horizon)
     plt.figure("contact forces")
     plt.plot(force_time_array, sim.fsim, label="$F^n$")
-    plt.show(block=False)
+    # plt.show(block=False)
+    plt.show()

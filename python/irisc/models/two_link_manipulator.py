@@ -15,9 +15,9 @@ class TwoLinkManipulator:
     def __init__(self):
         self.g = -9.81 
         self.l1 = 1. 
-        self.m1 = 1.
+        self.m1 = 2.
         self.l2 = 1. 
-        self.m2 = 1.
+        self.m2 = 2.
 
         self.nq = 2
         self.nv = 2 
@@ -49,7 +49,7 @@ class TwoLinkManipulator:
         m = np.zeros((2,2)) 
         m[0,0] = self.m1*l1s + self.m2*(l1s + 2*l1l2c2 + l2s)
         m[0,1] = self.m2*(l1l2c2 + l2s)
-        m[1,0] = m[1,2]
+        m[1,0] = m[0,1]
         m[1,1] = self.m2 * l2s
         return m   
  
@@ -68,12 +68,13 @@ class TwoLinkManipulator:
     def inv_mass_matrix(self, x):
         m = self.mass_matrix(x)
         det_m = (m[0,0]*m[1,1]) - (m[0,1]*m[1,0])
+        inv_det = 1/det_m
         minv = np.zeros((2,2))
         minv[0,0] = m[1,1]
         minv[0,1] = -m[0,1]
         minv[1,0] = -m[1,0]
         minv[1,1] = m[0,0]
-        return det_m*minv 
+        return inv_det*minv 
 
     def nle(self, x):
         return self.coriolis_forces(x) + self.gravity_vector(x)
@@ -133,18 +134,107 @@ class DifferentialActionTwoLinkManipulator(crocoddyl.DifferentialActionModelAbst
         else:
             self.xref = xref 
         #
-        self.w1 = np.eye(self.state.ndx)
-        self.w2 = np.eye(self.nu)
-        self.w3 = np.eye(self.state.ndx)
+        self.w1 = 1.e-2*np.eye(self.state.ndx) # state reg 
+        self.w1[2,2], self.w1[3,3] = 1.e+3, 41.e+3 
+        self.w2 = 1.e+2*np.eye(self.nu) # control reg 
+        self.w3 = 1.e+2*np.eye(self.state.ndx) # ee pos & vel terminal 
+        self.w4 = 2*np.eye(self.state.ndx) # ee pos & vel running 
        
-    def _running_cost(self, t, x, u): 
-        cost = .5*(x-self.xref).T.dot(self.w1).dot(x-self.xref)
+    def _running_cost(self, x, u): 
+        _, ee_p = self.dynamics.position_kinematics(x)
+        _, ee_dp = self.dynamics.velocity_kinematics(x)
+        ee_state = np.hstack([ee_p, ee_dp])
+        cost = .5*(ee_state-self.xref).T.dot(self.w4).dot(ee_state-self.xref)
+        cost += .5*(x).T.dot(self.w1).dot(x)
         cost += .5*u.T.dot(self.w2).dot(u)
         return cost 
     
     def _terminal_cost(self, x):
-        cost = .5*(x-self.xref).T.dot(self.w3).dot(x-self.xref)
+        _, ee_p = self.dynamics.position_kinematics(x)
+        _, ee_dp = self.dynamics.velocity_kinematics(x)
+        ee_state = np.hstack([ee_p, ee_dp])
+        cost = .5*(ee_state-self.xref).T.dot(self.w3).dot(ee_state-self.xref)
         return cost 
+
+    def terminal_cost_derivatives(self, x):
+        """ compute the gradient and hessian wrt the state x[th1, th2, dth1, dth2] 
+        """
+
+        Lx = np.zeros([self.state.ndx])
+        Lxx = np.zeros([self.state.ndx, self.state.ndx])
+
+        dx = np.zeros(self.state.ndx)
+        for i in range(self.state.ndx):
+            dx[i] = DELTA
+            xnew = self.state.integrate(x, dx)
+            cost1 = self._terminal_cost(xnew)
+            xnew = self.state.integrate(x, -dx)
+            cost2 = self._terminal_cost(xnew)
+            Lx[i] = cost1 - cost2 
+            dx[i] = 0. 
+        Lx *= 1./(2.*DELTA) 
+
+        dxi = np.zeros(self.state.ndx)
+        dxj = np.zeros(self.state.ndx)
+
+        for i in range(self.state.ndx):
+            for j in range(self.state.ndx): 
+                dxi[i] = DELTA
+                dxj[j] = DELTA
+                xnew = self.state.integrate(x, dxi + dxj)
+                cost1 = self._terminal_cost(xnew)
+                xnew = self.state.integrate(x, dxi - dxj)
+                cost2 = self._terminal_cost(xnew)
+                xnew = self.state.integrate(x, -dxi + dxj)
+                cost3 = self._terminal_cost(xnew)
+                xnew = self.state.integrate(x, -dxi - dxj)
+                cost4 = self._terminal_cost(xnew)
+                Lxx[i,j] = cost1 - cost2 - cost3 + cost4 
+                dxi[i] = 0.
+                dxj[j] = 0.
+        Lxx = .5*(Lxx + Lxx.T)
+        Lxx *= 1./(4.*DELTA*DELTA)
+        return Lx, Lxx 
+
+    def running_cost_state_derivative(self, x, u):
+        """ compute the gradient and hessian wrt the state x[th1, th2, dth1, dth2] 
+        """
+
+        Lx = np.zeros([self.state.ndx])
+        Lxx = np.zeros([self.state.ndx, self.state.ndx])
+
+        dx = np.zeros(self.state.ndx)
+        for i in range(self.state.ndx):
+            dx[i] = DELTA
+            xnew = self.state.integrate(x, dx)
+            cost1 = self._running_cost(xnew, u)
+            xnew = self.state.integrate(x, -dx)
+            cost2 = self._running_cost(xnew, u)
+            Lx[i] = cost1 - cost2 
+            dx[i] = 0. 
+        Lx *= 1./(2.*DELTA) 
+
+        dxi = np.zeros(self.state.ndx)
+        dxj = np.zeros(self.state.ndx)
+
+        for i in range(self.state.ndx):
+            for j in range(self.state.ndx): 
+                dxi[i] = DELTA
+                dxj[j] = DELTA
+                xnew = self.state.integrate(x, dxi + dxj)
+                cost1 = self._running_cost(xnew, u)
+                xnew = self.state.integrate(x, dxi - dxj)
+                cost2 = self._running_cost(xnew, u)
+                xnew = self.state.integrate(x, -dxi + dxj)
+                cost3 = self._running_cost(xnew, u)
+                xnew = self.state.integrate(x, -dxi - dxj)
+                cost4 = self._running_cost(xnew, u)
+                Lxx[i,j] = cost1 - cost2 - cost3 + cost4 
+                dxi[i] = 0.
+                dxj[j] = 0.
+        Lxx = .5*(Lxx + Lxx.T)
+        Lxx *= 1./(4.*DELTA*DELTA)
+        return Lx, Lxx 
 
     def calc(self, data, x, u=None): 
         if u is None:
@@ -152,9 +242,9 @@ class DifferentialActionTwoLinkManipulator(crocoddyl.DifferentialActionModelAbst
         #
         if self.isTerminal: 
             data.cost = self._terminal_cost(x) 
-            data.xout = np.zeros(2)
+            data.xout = np.zeros(self.state.nx)
         else:
-            data.cost = self._running_cost(self.t, x, u)
+            data.cost = self._running_cost(x, u)
             data.xout[:] = self.dynamics.nonlinear_dynamics(x,u)
 
 
@@ -171,12 +261,10 @@ class DifferentialActionTwoLinkManipulator(crocoddyl.DifferentialActionModelAbst
         Lxu = np.zeros([self.state.ndx, self.nu])
         # COST DERIVATIVES 
         if self.isTerminal:
-            Lx[:] =  self.w3.dot(x-self.xref)
-            Lxx[:,:] = self.w3.copy() 
+            Lx[:] , Lxx[:,:] = self.terminal_cost_derivatives(x) 
         else:
-            Lx[:] =  self.w1.dot(x-self.xref)
+            Lx[:], Lxx[:,:] =  self.running_cost_state_derivative(x,u)
             Lu[:] =  self.w2.dot(u)
-            Lxx[:,:] = self.w1.copy()
             Luu[:,:] = self.w2.copy()
 
             # dynamics derivatives 
@@ -191,13 +279,12 @@ class DifferentialActionTwoLinkManipulator(crocoddyl.DifferentialActionModelAbst
         data.Lxu = Lxu.copy()
 
 
+class TwoLinkManipulatorViz:
+    def __init__(self):
+        pass
 
 
 if __name__ =="__main__":
-    print(" Testing Penumatic Hopper with DDP ".center(LINE_WIDTH, '#'))
-    x0 = np.array([0., 0., 0., 0.])
-    MAX_ITER = 1000
-    T = 300 
-    dt = 1.e-2
-    running_models = []
+    model = TwoLinkManipulator() 
+    print(" Checking Forward Kinematics ".center(LINE_WIDTH,"="))
     

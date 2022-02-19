@@ -8,8 +8,8 @@ src_path = os.path.abspath('../../')
 sys.path.append(src_path) 
 
 from solvers import firisc
-from utils.uncertainty import problem_uncertainty
-from utils.problems import pneumatic_hopper_problem 
+from utils import problem_uncertainty
+import pneumatic_hopper_problem 
 from config_pneumatic_hopper import *
 
 

@@ -3,8 +3,8 @@ import numpy as np
 import os, sys
 src_path = os.path.abspath('../../') # append library directory without packaging 
 sys.path.append(src_path)
-from utils.uncertainty import measurement_models, process_models, problem_uncertainty
-from utils.action_models import pneumatic_hopper 
+from utils import measurement_models, process_models, problem_uncertainty
+from models import pneumatic_hopper 
 import crocoddyl 
 
 
