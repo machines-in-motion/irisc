@@ -10,17 +10,31 @@ sys.path.append(src_path)
 from solvers import firisc
 from utils import problem_uncertainty
 import pneumatic_hopper_problem 
-from config_pneumatic_hopper import *
 
 
+LINE_WIDTH = 100 
+PLOT_FIGS = True 
+SAVE_SOLN = True 
 
+x0 = np.array([0.5, 0., 0., 0.])
+MAX_ITER = 1000
+horizon = 300
+
+
+plan_dt = 1.e-2
+control_dt = 1.e-3
+sim_dt = 1.e-5
+
+initial_covariance = 1.e-4 * np.eye(4)
+process_noise = 1.e-4*np.eye(4)
+measurement_noise = 1.e-4*np.eye(4)
+sensitivity = -.5
 
 if __name__ == "__main__":
     # load ddp solution 
 
     p_models, u_models, p_estimate, u_estimate = pneumatic_hopper_problem.full_state_uniform_hopper(plan_dt, horizon, 
     process_noise, measurement_noise, control_dt)
-
 
     problem = crocoddyl.ShootingProblem(x0, p_models[:-1], p_models[-1])
 

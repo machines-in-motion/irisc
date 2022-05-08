@@ -1,4 +1,11 @@
-""" model inspired from Sideris and Bobrow """
+""" model inspired from Sideris and Bobrow 
+states 
+x0: hip position relative to groud 
+x1: foot position relative to hip, positive is downward 
+x2: hip velocity 
+x3: foot velocity relative to hip 
+
+"""
 
 
 import numpy as np 
@@ -12,21 +19,25 @@ class PneumaticHopper1D:
         self.g = 9.81 
         self.mass = 2. 
         self.k = 500. 
-        self.alpha = 1.e-2
+        self.alpha = .01
         self.inv_m = 1./self.mass 
         self.d0 = .5 # nominal position of foot relative to mass 
 
     def nonlinear_dynamics(self, x, u):
         acc = np.zeros(2)
         e = x[1] - x[0] + self.d0
-        acc[1] = u[0] 
+         
         if e < 0.:
-            acc[0] = -self.g
+            fc = 0. 
         elif e >= 0 and e < self.alpha:
             scale = .5*self.k / self.alpha
-            acc[0] = self.inv_m*scale*(e**2)  - self.g
+            fc = scale*(e**2)
         else:
-            acc[0] = self.inv_m*self.k*e - .5*self.inv_m*self.k*self.alpha  - self.g
+            fc = self.k*e - .5*self.k*self.alpha
+        if fc<0.:
+            fc = 0.
+        acc[0] = self.inv_m*fc  - self.g
+        acc[1] =  u[0] 
         return acc
 
     def derivatives(self, x, u):
@@ -34,17 +45,24 @@ class PneumaticHopper1D:
         dfdx = np.zeros([2,4])
         dfdu = np.zeros([2,1])
         # 
+
         e = x[1] - x[0] + self.d0
-        if e<0.:
-            pass                  
-        elif e >= 0. and e < self.alpha:
+        dfdu[1,0] = 1.   
+        if e < 0.:
+            fc = 0. 
+        elif e >= 0 and e < self.alpha:
+            scale = .5*self.k / self.alpha
+            fc = scale*(e**2)
             dfdx[0,0] = -self.inv_m*(self.k/self.alpha)*e 
             dfdx[0,1] = self.inv_m*(self.k/self.alpha)*e 
         else:
+            fc = self.k*e - .5*self.k*self.alpha
             dfdx[0,0] = -self.inv_m*self.k 
             dfdx[0,1] = self.inv_m*self.k
-        # 
-        dfdu[1,0] = 1. 
+        if fc<1.e-6:
+            fc = 0.
+            dfdx = np.zeros([2,4])
+
         return dfdx, dfdu
 
     def discrete_dynamics(self, x, u, dt):
@@ -82,45 +100,53 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         self.dynamics = PneumaticHopper1D()
         self.isTerminal = isTerminal
         self.z_des = 2.
-        self.scale = .5/T  
+        # self.scale = .5/T  
         #
         self.t = t  # will be used to scale costs 
         self.T = T  # horizon
-        self.t1 = int(T/2) - 2 # phase one 
-        self.t2 = self.t1 + 4
+        self.t1 = int(T/2) - 15 # phase one 
+        self.t2 = self.t1 + 10
         self.w = [] 
-        # running cost weights 
-        self.w += [1.e+2] # mass position  w[0]
-        self.w += [5.e+0] # piston position  w[1]
-        self.w += [1.e-1] # control w[2]
-        # jump phase 
-        self.w += [1.e+2] # mass height  w[3]
-        self.w += [1.e-1] # piston position w[4] 
-        self.w += [1.e+0] # mass velocity  w[5]
-        self.w += [1.e-1] # control weight w[6]
-        # terminal 
-        self.w += [1.e+2] # mass position w[7]
-        self.w += [1.e+2] # piston position w[8]
-        self.w += [1.e+1] # mass and piston velocties w[9] 
-        # extra term to phase 1 
 
-        self.w +=  [1.e-3] # w[10]
+        self.wx_stance = np.array([[5.e+2, 0., 0., 0.],
+                                 [0., 1.e+1, 0., 0.],
+                                 [0., 0., 1.e-1, 0.],
+                                 [0., 0., 0., 1.e-1]])
+        self.wx_jump = np.array([[1.e+4, 0., 0., 0.],
+                                 [0., 1.e-2, 0., 0.],
+                                 [0., 0., 1.e+1, 0.],
+                                 [0., 0., 0., 0.]])
+        self.wx_land = np.array([[5.e+2, 0., 0., 0.],
+                                 [0., 1.e+1, 0., 0.],
+                                 [0., 0., 1.e+1, 0.],
+                                 [0., 0., 0., 1.e-5]])
+        self.wx_terminal = np.array([[5.e+2, 0., 0., 0.],
+                                     [0., 1.e+2, 0., 0.],
+                                     [0., 0., 1.e+1, 0.],
+                                     [0., 0., 0., 1.e+1]])
 
-        self.cost_scale =1.e+0 #5.e-3 #1.e-2     
+        self.wu_stance =   np.array([[1.e-2]])
+        self.wu_jump =     np.array([[1.e-2]])   
+        self.wu_land =     np.array([[1.e-2]])         
+        self.cost_scale = 1.e-1 #5.e-3 #1.e-2     
         
 
     def _running_cost(self, t, x, u): 
-        if t<= self.t1 or t > self.t2:
-            cost = self.scale*self.w[0]*(x[0]-self.dynamics.d0)**2 + self.scale*self.w[1]*(x[1]-self.dynamics.alpha)**2
-            cost += self.scale*self.w[2]*u[0]**2 + self.scale*self.w[10]*x[2]**2  
+        if t<= self.t1:
+            dx = x - np.array([self.dynamics.d0, self.dynamics.alpha, 0., 0.])
+            cost = .5 * dx.T.dot(self.wx_stance).dot(dx) + .5* u.T.dot(self.wu_stance).dot(u)
+        elif t>self.t2:
+            dx = x - np.array([self.dynamics.d0, self.dynamics.alpha, 0., 0.])
+            cost = .5 * dx.T.dot(self.wx_land).dot(dx) + .5* u.T.dot(self.wu_land).dot(u)
         else:
-            cost = .5*self.w[3]*(x[0]-self.z_des)**2 + self.w[4]*x[1]**2 
-            cost +=  self.w[5]*x[2]**2 + self.w[6]*u[0]**2
+            dx = x - np.array([self.z_des, 0., 0., 0.])
+            cost = .5 * dx.T.dot(self.wx_jump).dot(dx) + .5* u.T.dot(self.wu_jump).dot(u)
         cost *= self.cost_scale
         return cost 
     
     def _terminal_cost(self, x):
-        cost = self.w[7]*(x[0]-self.dynamics.d0)**2 + self.w[8]*x[1]**2 + self.w[9]*x[2:].dot(x[2:])
+        dx = x - np.array([self.dynamics.d0, self.dynamics.alpha, 0., 0.])
+        cost = .5 * dx.T.dot(self.wx_terminal).dot(dx)
         cost *= self.cost_scale
         return cost 
 
@@ -149,43 +175,37 @@ class DifferentialActionModelHopper(crocoddyl.DifferentialActionModelAbstract):
         Lxu = np.zeros([4,1])
         # COST DERIVATIVES 
         if self.isTerminal:
-            Lx[0] = 2.*self.w[7]*(x[0] - self.dynamics.d0)
-            Lxx[0,0] = 2.*self.w[7]  
-            Lx[1] = 2.*self.w[8]*x[1]
-            Lxx[1,1] = 2.*self.w[8]
-            Lx[2] = 2.*self.w[9]*x[2]
-            Lxx[2,2] = 2.*self.w[9]
-            Lx[3] = 2.*self.w[9]*x[3]
-            Lxx[3,3] = 2.*self.w[9]
-            Lx *= self.cost_scale 
-            Lxx *= self.cost_scale
+            dx = x - np.array([self.dynamics.d0, self.dynamics.alpha, 0., 0.])
+            Lx = self.wx_terminal.dot(dx)
+            Lxx = self.wx_terminal
+            Fx, _ = self.dynamics.derivatives(x,u)
         else:
             t = self.t 
-            if t<= self.t1 or t > self.t2:
-                Lx[0] = 2.*self.scale * self.w[0]*(x[0]-self.dynamics.d0)
-                Lxx[0,0] = 2.*self.scale * self.w[0]
-                Lx[1] = 2.* self.scale*self.w[1]*(x[1]-self.dynamics.alpha)
-                Lxx[1,1] = 2.* self.scale*self.w[1] 
-                Lu[0] = 2*self.scale*self.w[2]*u[0]
-                Luu[0,0] = 2*self.scale*self.w[2]
-                Lx[2] = 2.*self.scale*self.w[10]*x[2]
-                Lxx[2,2] = 2.*self.scale*self.w[10]
+            if t<= self.t1: #or t > self.t2:
+                dx = x - np.array([self.dynamics.d0, self.dynamics.alpha, 0., 0.])
+                Lx = self.wx_stance.dot(dx)
+                Lxx = self.wx_stance
+                Lu = self.wu_stance.dot(u)
+                Luu = self.wu_stance
+            elif t>self.t2:
+                dx = x - np.array([self.dynamics.d0, self.dynamics.alpha, 0., 0.]) 
+                Lx = self.wx_land.dot(dx)
+                Lxx = self.wx_land
+                Lu = self.wu_land.dot(u)
+                Luu = self.wu_land
             else:
-                Lu[0] = 2.*self.w[6]*u[0]
-                Luu[0,0] = 2.*self.w[6]
-                Lx[0] = self.w[3]*(x[0]-self.z_des) 
-                Lxx[0,0] = self.w[3]
-                Lx[1] = 2.*self.w[4]*x[1]
-                Lxx[1,1] = 2.*self.w[4]
-                Lx[2] = 2.*self.w[5]*x[2] 
-                Lxx[2,2] = 2.*self.w[5]
-            
-            Lx *= self.cost_scale 
-            Lxx *= self.cost_scale 
-            Lu *= self.cost_scale 
-            Luu *= self.cost_scale 
-            # dynamics derivatives 
+                dx = x - np.array([self.z_des, 0., 0., 0.])
+                Lx = self.wx_jump.dot(dx)
+                Lxx = self.wx_jump
+                Lu = self.wu_jump.dot(u)
+                Luu = self.wu_jump
             Fx, Fu = self.dynamics.derivatives(x,u)
+    
+        Lx *= self.cost_scale 
+        Lxx *= self.cost_scale 
+        Lu *= self.cost_scale 
+        Luu *= self.cost_scale 
+
         # COPY TO DATA 
         data.Fx = Fx.copy()
         data.Fu = Fu.copy()

@@ -60,26 +60,7 @@ class RiskSensitiveSolver(SolverAbstract):
         self.problem.calc(self.xs, self.us)
         self.problem.calcDiff(self.xs, self.us)
         self.uncertainty.calc(self.xs, self.us) # compute H, Omega, Gamma 
-        # print("went into calc")
 
-        # if not self.isFeasible:
-        # Gap store the state defect from the guess to feasible (rollout) trajectory, i.e.
-        #   gap = x_rollout [-] x_guess = DIFF(x_guess, x_rollout)
-        # print("not feasible")
-        self.fs[0] = self.problem.runningModels[0].state.diff(self.xs[0], self.problem.x0)
-        # print("initial gap")
-        ng = np.linalg.norm(self.fs[0])
-        # print("initial gap norm")
-        for t, (m, d, x) in enumerate(zip(self.problem.runningModels, self.problem.runningDatas, self.xs[1:])):
-            self.fs[t + 1] = m.state.diff(x, d.xnext)
-            ng += np.linalg.norm(self.fs[t+1])
-        
-        if ng<self.gap_tolerance:
-            self.isFeasible = True
-        else:
-            self.isFeasible = False 
-
-        # print("calc passed")
 
     def computeDirection(self, recalc=True):
         if recalc:
@@ -104,85 +85,6 @@ class RiskSensitiveSolver(SolverAbstract):
         knormSquared = [ki.dot(ki) for ki in self.k]
         knorm = np.sqrt(np.array(knormSquared))
         return knorm
-        
-    def solve(self, init_xs=None, init_us=None, maxiter=100, isFeasible=False, regInit=None):
-        self.setCandidate(init_xs, init_us, isFeasible)
-        self.cost = self.expected_cost(self.xs, self.us)
-        print("initial cost is %s"%self.cost)
-        print("initial trajectory feasibility %s"%self.isFeasible)      
-        self.n_little_improvement = 0
-        self.x_reg = regInit if regInit is not None else self.regMin
-        self.u_reg = regInit if regInit is not None else self.regMin
-
-        for i in range(maxiter):
-            # print("running iteration no. %s".center(LINE_WIDTH,'#')%i)
-            recalc = True   # this will recalculated derivatives in Compute Direction 
-            while True:     # backward pass with regularization 
-                try:
-                    # print("iteration number %s"%i) 
-                    self.computeDirection(recalc=recalc)
-                    # _,_ = self.expectedImprovement()
-                except:
-                    print("compute direcrtion failed") 
-                    recalc = True 
-                    self.increaseRegularization()
-                    print("increasing regularization at iterations %s"%i)
-                    if self.x_reg == self.regMax: # if max reg reached, faild to converge, end solve attempt  
-                        print("Backward Pass Maximum Regularization Reached at iteration %s"%i) 
-                        return False #self.xs, self.us, False
-                    else:  # continue to next while  
-                        continue
-                break # compute direction succeeded, exit and proceed to line search 
-            
-            for a in self.alphas:
-                try: 
-                    self.dV = self.tryStep(a)
-                except:
-                    # repeat starting from a smaller alpha 
-                    print("Try Step Faild for alpha = %s"%a) 
-                    continue 
-            
-                if self.dV > 0.:# and self.cost_try>0.: # Cost has decreased, accept step 
-                    # print("step accepted at iteration %s for alpha %s"%(i,a))
-                    self.setCandidate(self.xs_try, self.us_try, self.isFeasible)
-                    self.cost = self.cost_try 
-                    if self.dV < 1.e-12:
-                        self.n_little_improvement += 1
-                    break # stop line search and proceed to next iteration 
-        
-            if a > self.th_step: # decrease regularization if alpha > .5 
-                self.decreaseRegularization()
-                self.n_min_alpha = 0
-            if a == self.alphas[-1] :  
-                self.n_min_alpha += 1
-                self.increaseRegularization()
-                if self.x_reg == self.regMax:
-                    print(" Maximum Regularixation Reached with no Convergence ".center(LINE_WIDTH,'='))
-                    return False # self.xs, self.us, False
-            
-            self.stepLength = a
-            self.iter = i
-            self.stop = sum(self.stoppingCriteria())
-            
-            if self.getCallbacks() is not None: # this way callback prints appear before solver convergence message 
-                [c(self) for c in self.getCallbacks()]
-
-            if  self.stop < self.th_stop:
-                self.n_little_improvement += 1
-
-            if self.n_little_improvement == 10:
-                print('Solver converged with little improvement in the last 5 iterations')
-                return True 
-
-            if self.n_min_alpha == 15:
-                print("Line search is not making any improvements")
-                return False 
-
-        # print("Now we are completely out of the for loop")
-
-        # Warning: no convergence in max iterations
-        print('max iterations with no convergance')
-        return False 
 
     def backwardPass(self):
         self.V[-1][:,:] = self.problem.terminalData.Lxx
@@ -303,6 +205,85 @@ class RiskSensitiveSolver(SolverAbstract):
 
         ctry -= self.inv_sigma*np.log(kappa)
         return ctry
+
+    def solve(self, init_xs=None, init_us=None, maxiter=100, isFeasible=False, regInit=None):
+        self.setCandidate(init_xs, init_us, isFeasible)
+        self.cost = self.expected_cost(self.xs, self.us)
+        print("initial cost is %s"%self.cost)
+        print("initial trajectory feasibility %s"%self.isFeasible)      
+        self.n_little_improvement = 0
+        self.x_reg = regInit if regInit is not None else self.regMin
+        self.u_reg = regInit if regInit is not None else self.regMin
+
+        for i in range(maxiter):
+            # print("running iteration no. %s".center(LINE_WIDTH,'#')%i)
+            recalc = True   # this will recalculated derivatives in Compute Direction 
+            while True:     # backward pass with regularization 
+                try:
+                    # print("iteration number %s"%i) 
+                    self.computeDirection(recalc=recalc)
+                    # _,_ = self.expectedImprovement()
+                except:
+                    print("compute direcrtion failed") 
+                    recalc = True 
+                    self.increaseRegularization()
+                    print("increasing regularization at iterations %s"%i)
+                    if self.x_reg == self.regMax: # if max reg reached, faild to converge, end solve attempt  
+                        print("Backward Pass Maximum Regularization Reached at iteration %s"%i) 
+                        return False #self.xs, self.us, False
+                    else:  # continue to next while  
+                        continue
+                break # compute direction succeeded, exit and proceed to line search 
+            
+            for a in self.alphas:
+                try: 
+                    self.dV = self.tryStep(a)
+                except:
+                    # repeat starting from a smaller alpha 
+                    print("Try Step Faild for alpha = %s"%a) 
+                    continue 
+            
+                if self.dV > 0.:# and self.cost_try>0.: # Cost has decreased, accept step 
+                    # print("step accepted at iteration %s for alpha %s"%(i,a))
+                    self.setCandidate(self.xs_try, self.us_try, self.isFeasible)
+                    self.cost = self.cost_try 
+                    if self.dV < 1.e-12:
+                        self.n_little_improvement += 1
+                    break # stop line search and proceed to next iteration 
+        
+            if a > self.th_step: # decrease regularization if alpha > .5 
+                self.decreaseRegularization()
+                self.n_min_alpha = 0
+            if a == self.alphas[-1] :  
+                self.n_min_alpha += 1
+                self.increaseRegularization()
+                if self.x_reg == self.regMax:
+                    print(" Maximum Regularixation Reached with no Convergence ".center(LINE_WIDTH,'='))
+                    return False # self.xs, self.us, False
+            
+            self.stepLength = a
+            self.iter = i
+            self.stop = sum(self.stoppingCriteria())
+            
+            if self.getCallbacks() is not None: # this way callback prints appear before solver convergence message 
+                [c(self) for c in self.getCallbacks()]
+
+            if  self.stop < self.th_stop:
+                self.n_little_improvement += 1
+
+            if self.n_little_improvement == 10:
+                print('Solver converged with little improvement in the last 5 iterations')
+                return True 
+
+            if self.n_min_alpha == 15:
+                print("Line search is not making any improvements")
+                return False 
+
+        # print("Now we are completely out of the for loop")
+
+        # Warning: no convergence in max iterations
+        print('max iterations with no convergance')
+        return False 
 
     def increaseRegularization(self):
         self.x_reg *= self.regFactor

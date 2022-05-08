@@ -29,8 +29,8 @@ def full_state_uniform_hopper(plan_dt, horizon, process_noise, measurement_noise
         for t in range(horizon):
             diff_hopper = pneumatic_hopper.DifferentialActionModelHopper(t, horizon, False) 
             hopper_running_est_model = crocoddyl.IntegratedActionModelEuler(diff_hopper, dt_control)
-            p_model = process_models.FullStateProcess(hopper_running_est_model, np.sqrt(plan_dt)*process_noise) 
-            m_model = measurement_models.FullStateMeasurement(hopper_running_est_model, np.sqrt(plan_dt)*measurement_noise)
+            p_model = process_models.FullStateProcess(hopper_running_est_model, np.sqrt(dt_control)*process_noise) 
+            m_model = measurement_models.FullStateMeasurement(hopper_running_est_model, np.sqrt(dt_control)*measurement_noise)
             estimation_models += [[hopper_running_est_model]*n_steps]
             umodel = problem_uncertainty.UncertaintyModel(p_model, m_model)
             estimation_uncertainty += [[umodel]*n_steps]

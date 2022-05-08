@@ -10,10 +10,26 @@ import os, sys
 src_path = os.path.abspath('../../') 
 sys.path.append(src_path) 
 
-from utils.problems import pneumatic_hopper_problem 
-from config_pneumatic_hopper import *
+import pneumatic_hopper_problem 
 
 
+LINE_WIDTH = 100 
+PLOT_FIGS = True 
+SAVE_SOLN = True 
+
+x0 = np.array([0.5, 0., 0., 0.])
+MAX_ITER = 1000
+horizon = 300
+
+
+plan_dt = 1.e-2
+control_dt = 1.e-3
+sim_dt = 1.e-5
+
+initial_covariance = 1.e-4 * np.eye(4)
+process_noise = 1.e-4*np.eye(4)
+measurement_noise = 1.e-4*np.eye(4)
+sensitivity = -.5
 
 
 if __name__ == "__main__":

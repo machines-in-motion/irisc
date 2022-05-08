@@ -1,5 +1,6 @@
 import numpy as np 
 import scipy.linalg as scl 
+
 class AbstractController:
     def __init__(self, action_models, xs, us):
         self.action_models = action_models
@@ -18,7 +19,7 @@ class AbstractController:
             dx = self.states[t].diff(self.xs[t], self.xs[t+1])
             return self.states[t].integrate(self.xs[t], d*dx)  
 
-    def compute_error(self, t, xs, xa):
+    def compute_error(self, t, xref, xact):
         """ computes error between reference state and
         actual state, accounts lie group stuff 
         Args:
@@ -26,7 +27,7 @@ class AbstractController:
             xs: reference state 
             xa: actual state 
         """
-        return self.states[t].diff(xs, xa) 
+        return self.states[t].diff(xref, xact) # returns xref - xact  
     
     def __call__(self, t, d, x, chi):
         raise NotImplementedError("call method not implemented for Abstract Controller")
@@ -75,15 +76,16 @@ class RiskSensitiveController(AbstractController):
     def __call__(self, t, d, x, chi):
         xdes = self.interpolate_xs(t,d)
         err = self.compute_error(t, xdes, x)
-        Lb = scl.cho_factor(np.eye(self.action_models[t].state.ndx) + self.sigma*chi.dot(self.V[t]),lower=True)
-        k_right = chi.dot(self.v[t])
+        inv_chi = np.linalg.inv(chi)
+        Lb = scl.cho_factor(inv_chi+ self.sigma*self.V[t],lower=True)
+        k_right = self.sigma*self.v[t]
         k_pre = scl.cho_solve(Lb, k_right)
-        k = self.sigma*self.K[t].dot(k_pre)
-        K_right = np.eye(self.action_models[t].state.ndx) 
+        k = self.K[t].dot(k_pre)
+        K_right = inv_chi #  np.eye(self.action_models[t].state.ndx) 
         K_pre = scl.cho_solve(Lb, K_right)
         K = self.K[t].dot(K_pre) 
         u = self.us[t] + k - K.dot(err)
-        if d < 1.e-8:
+        if d < 1.e-6:
             #store stuff 
             self.K_opt +=[K]
             self.k_opt += [k] 

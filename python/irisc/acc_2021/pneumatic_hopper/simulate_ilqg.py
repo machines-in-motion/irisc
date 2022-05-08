@@ -13,7 +13,25 @@ from utils import measurement_models, process_models, problem_uncertainty, estim
 from utils import controllers, simulator
 
 import matplotlib.pyplot as plt 
-from config_pneumatic_hopper import *
+
+
+LINE_WIDTH = 100 
+PLOT_FIGS = True 
+SAVE_SOLN = True 
+
+x0 = np.array([0.5, 0., 0., 0.])
+MAX_ITER = 1000
+horizon = 300
+
+
+plan_dt = 1.e-2
+control_dt = 1.e-3
+sim_dt = 1.e-5
+
+initial_covariance = 1.e-4 * np.eye(4)
+process_noise = 1.e-4*np.eye(4)
+measurement_noise = 1.e-4*np.eye(4)
+sensitivity = -.5
 
 
 

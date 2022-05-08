@@ -4,6 +4,8 @@ from numpy.core.fromnumeric import shape, transpose
 import scipy.linalg as scl
 import crocoddyl
 from crocoddyl import SolverAbstract
+import pdb
+np.seterr(all='raise')
 
 LINE_WIDTH = 100 
 
@@ -218,11 +220,11 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
                 print("Qux is given by \n", Qux)
             self.K[t][:, :] = scl.cho_solve(Lb, Qux)
             # hessian
-            self.V[t][:,:] = Qxx + self.K[t].T.dot(Quu).dot(self.K[t]) - self.K[t].T.dot(Qux) - Qux.T.dot(self.K[t])
-            self.V[t][:,:] = .5 *(self.V[t] + self.V[t].T) # ensure symmetry 
+            self.V[t][:,:] = Qxx  - self.K[t].T.dot(Qux) #+ self.K[t].T.dot(Quu).dot(self.K[t]) - Qux.T.dot(self.K[t])
+            # self.V[t][:,:] = .5 *(self.V[t] + self.V[t].T) # ensure symmetry 
             if VERBOSE: print("V[%s]"%t)
             # gradient 
-            self.v[t][:] = Qx + self.K[t].T.dot(Quu).dot(self.k[t]) - self.K[t].T.dot(Qu) - Qux.T.dot(self.k[t])
+            self.v[t][:] = Qx - Qux.T.dot(self.k[t])#+ self.K[t].T.dot(Quu).dot(self.k[t]) - self.K[t].T.dot(Qu) 
             if VERBOSE: print("v[%s]"%t)
             # improvement 
             # invWt = np.linalg.inv(self.inv_sigma*udata.invOmega + self.V[t+1])
@@ -286,7 +288,7 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
             Nt = self.v_try[t+1] - self.sigma * Mt.dot(udata.Omega).dot(self.v_try[t+1])
 
             self.V_try[t][:,:] = data.Lxx + data.Fx.T.dot(Mt).dot(data.Fx)
-            self.v_try[t][:] = data.Lx + self.fs_try[t+1].T.dot(Mt).dot(data.Fx) + data.Fx.T.dot(Nt)
+            self.v_try[t][:] = data.Lx + data.Fx.T.dot(Mt).dot(self.fs_try[t+1].T) + data.Fx.T.dot(Nt)
             invWt = np.linalg.inv(self.inv_sigma*udata.invOmega + self.V_try[t+1])
             self.dv_try[t] = data.cost + self.dv_try[t+1] - .5*self.v_try[t+1].T.dot(invWt).dot(self.v_try[t+1])
             self.dv_try[t] += self.fs_try[t+1].T.dot(Nt + .5*Mt.dot(self.fs_try[t+1]))  
@@ -298,10 +300,9 @@ class FeasibilityRiskSensitiveSolver(SolverAbstract):
         Winv = scl.inv(self.V_try[0] + self.inv_sigma*scl.inv(self.uncertainty.P0))
         ctry = self.dv_try[0]-.5*self.v_try[0].T.dot(Winv).dot(self.v_try[0])
         kappa = 1. 
-        for n in self.etas:
-            kappa *= 1/np.sqrt(n)
-
-        ctry -= self.inv_sigma*np.log(kappa)
+        for i, n in enumerate(self.etas):
+            kappa *= np.sqrt(n)
+        ctry += self.inv_sigma*np.log(kappa)
         return ctry
 
     def increaseRegularization(self):

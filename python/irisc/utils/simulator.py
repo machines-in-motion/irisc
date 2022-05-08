@@ -1,8 +1,3 @@
-""" 
-ConSim Simulator for Articulated 3D Robots 
-One Dimensional Hopping Simulator """
-
-from types import DynamicClassAttribute
 import numpy as np 
 
 
@@ -41,7 +36,7 @@ class HopperSimulator(AbstractSimulator):
         self.inv_m = 1./self.mass  
 
         # few simulation parameters 
-        self.k = 1.e+5 
+        self.k = 1.e+5
         self.b = 300.  
         self.env = 0.
         self.x0[0] += self.env
@@ -81,24 +76,22 @@ class HopperSimulator(AbstractSimulator):
     def step(self, x, u):
         """ computes one simulation step """
         dv = np.zeros(2)
-        xnext = np.zeros(4)
-        vnet = x[2]-x[3] 
-        if vnet > 0.:
-            fc = 0. 
-        else:
-             
-            xc = x[0] - x[1] - self.dynamics.d0 # contact point height 
-            if xc > self.env:
+        xnext = x.copy()
+        for _ in range(self.n_sim_steps):
+            vnet = xnext[2]-xnext[3] 
+            xc = xnext[0] - xnext[1] - self.dynamics.d0 # contact point height 
+            if xc>self.env:
                 fc = 0. 
             else:
                 err = self.env - xc 
                 fc = self.k*err - self.b*vnet
-        
-        dv[0] = self.inv_m*fc - self.g  
-        dv[1] = u[0] 
-        dv = self.sim_dt*dv 
-        xnext[:2] = x[:2] + self.sim_dt*x[2:] + .5*self.sim_dt*dv
-        xnext[2:] = x[2:] + dv
+                if fc <0.:
+                    fc = 0.
+            dv[0] = self.inv_m*fc - self.g  
+            dv[1] = u[0] 
+            dv *= self.sim_dt
+            xnext[:2] = xnext[:2] + self.sim_dt*xnext[2:] + .5*self.sim_dt*dv
+            xnext[2:] = xnext[2:] + dv
         return xnext, fc 
 
 
@@ -117,9 +110,7 @@ class HopperSimulator(AbstractSimulator):
                     self.env = new_env
             for i in range(self.n_control_steps):
                 ui = self.controller(t, i/self.n_control_steps, xh, chi)
-                for _ in range(self.n_sim_steps):
-                    xi, fi = self.step(xi, ui) 
-                
+                xi, fi = self.step(xi, ui) 
                 if self.estimator is not None:
                     umodel = self.uncertainty_models[t][i]
                     udata = self.uncertainty_datas[t][i]
@@ -130,12 +121,15 @@ class HopperSimulator(AbstractSimulator):
                     chi = self.estimator.chi[-1].copy()
                 else:
                     xh = xi.copy()
-            self.fsim += [fi]
+                self.fsim += [fi]
 
-            self.usim += [ui]            
-            self.xsim += [xi]
-            self.xhsim += [self.estimator.xhat[-1]] # estimated states 
-            self.chi += [self.estimator.chi[-1]]
+                self.usim += [ui]            
+                self.xsim += [xi]
+                if self.estimator is not None:
+                    self.xhsim += [self.estimator.xhat[-1]] # estimated states 
+                    self.chi += [self.estimator.chi[-1]]
+                else:
+                    self.xhsim += [xh]
 
 
 class PointMassSimulator(AbstractSimulator):
